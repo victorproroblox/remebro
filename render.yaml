@@ -1,0 +1,61 @@
+services:
+  # ============================
+  # API MONGO (Atlas)
+  # ============================
+  - type: web
+    name: edumochila-api-mongo
+    runtime: node
+    rootDir: edumochila_api_mongo
+    plan: free
+    region: oregon
+    buildCommand: npm ci
+    startCommand: npm run start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    buildFilter:
+      paths:
+        - edumochila_api_mongo/**
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: ALLOWED_ORIGINS
+        value: http://localhost:3000
+      # Pega este valor en el panel (secret)
+      - key: MONGODB_URI
+        sync: false
+      - key: MONGODB_DB
+        value: mochila_iot
+
+  # ============================
+  # API MYSQL (Railway)
+  # ============================
+  - type: web
+    name: edumochila-api-mysql
+    runtime: node
+    rootDir: edumochila_api_mysql
+    plan: free
+    region: oregon
+    buildCommand: npm ci
+    startCommand: npm run start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    buildFilter:
+      paths:
+        - edumochila_api_mysql/**
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: ALLOWED_ORIGINS
+        value: http://localhost:3000
+      - key: MYSQL_HOST
+        sync: false
+      - key: MYSQL_PORT
+        sync: false
+      - key: MYSQL_USER
+        sync: false
+      - key: MYSQL_PASSWORD
+        sync: false
+      - key: MYSQL_DATABASE
+        sync: false
+      - key: MYSQL_SSL
+        value: "false"
