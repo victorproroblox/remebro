@@ -1,0 +1,180 @@
+/* Estilos generales del dashboard */
+.productos-wrapper {
+  padding: 30px;
+  background: linear-gradient(to bottom, #0f2027, #203a43, #2c5364);
+  min-height: 100vh;
+  color: #fff;
+  font-family: 'Segoe UI', sans-serif;
+}
+
+.productos-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 25px;
+}
+
+.productos-title {
+  font-size: 28px;
+  font-weight: bold;
+  color: #00cfff;
+}
+
+.btn-agregar {
+  background: linear-gradient(90deg, #00cfff, #00aacc);
+  color: white;
+  border: none;
+  padding: 12px 22px;
+  font-size: 15px;
+  border-radius: 25px;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.btn-agregar:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 10px rgba(0, 207, 255, 0.6);
+}
+
+/* Tabla */
+.productos-tabla {
+  width: 100%;
+  border-collapse: collapse;
+  background-color: #1c1c1c;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+}
+
+.productos-tabla th, .productos-tabla td {
+  padding: 15px;
+  text-align: left;
+  border-bottom: 1px solid #333;
+}
+
+.productos-tabla th {
+  background-color: #2c2c2c;
+  color: #00cfff;
+  font-size: 15px;
+  text-transform: uppercase;
+}
+
+.productos-tabla td {
+  color: #ddd;
+  font-size: 14px;
+}
+
+.productos-tabla tr:hover {
+  background-color: #2c2c2c;
+}
+
+/* Botones de acciones */
+.acciones {
+  display: flex;
+  gap: 12px;
+}
+
+.btn-editar,
+.btn-desactivar {
+  border: none;
+  padding: 8px 14px;
+  font-size: 13px;
+  border-radius: 20px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: #fff;
+}
+
+.btn-editar {
+  background: linear-gradient(90deg, #00cfff, #00aacc);
+}
+
+.btn-editar:hover {
+  background: linear-gradient(90deg, #00aacc, #0099aa);
+  transform: scale(1.05);
+}
+
+.btn-desactivar {
+  background: linear-gradient(90deg, #f55, #d33);
+}
+
+.btn-desactivar:hover {
+  background: linear-gradient(90deg, #d33, #c11);
+  transform: scale(1.05);
+}
+
+
+.formulario-producto {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  background-color: #1c1c1c;
+  padding: 25px;
+  border-radius: 12px;
+  box-shadow: 0 0 10px rgba(0, 207, 255, 0.2);
+}
+
+.formulario-producto input,
+.formulario-producto select {
+  padding: 12px;
+  border: none;
+  border-radius: 8px;
+  font-size: 15px;
+  background-color: #333;
+  color: white;
+}
+
+.formulario-producto select option {
+  color: black;
+}
+
+.btn-activar {
+  background-color: #4caf50;
+  color: white;
+  border: none;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+}
+
+.btn-activar:hover {
+  background-color: #3e8e41;
+}
+.productos-botones {
+  display: flex;
+  gap: 10px;
+}
+
+.btn-volver {
+  background-color: #555;
+  color: white;
+  border: none;
+  padding: 10px 18px;
+  font-size: 14px;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.btn-volver:hover {
+  background-color: #333;
+}
+
+.btn-volver {
+  background-color: #555;
+  color: white;
+  border: none;
+  padding: 10px 18px;
+  font-size: 14px;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: background 0.3s;
+  margin-left: auto;
+}
+
+.btn-volver:hover {
+  background-color: #333;
+}
