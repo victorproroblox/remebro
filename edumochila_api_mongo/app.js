@@ -27,7 +27,7 @@ app.use('/api/productos', productRoutes);
 
 app.use((req, res) => res.status(404).json({ message: 'Ruta no encontrada' }));
 
-const port = process.env.PORT || 5000;
+const port = process.env.PORT || 4001;
 app.listen(port, async () => {
   await connectMongo();
   console.log(`🚀 API Mongo lista en http://localhost:${port}`);
