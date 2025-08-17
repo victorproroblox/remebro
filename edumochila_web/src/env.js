@@ -2,11 +2,11 @@
 const stripSlash = (u) => (u || "").replace(/\/$/, "");
 
 export const API_URL = stripSlash(
-  process.env.REACT_APP_API_MYSQL_URL || "http://localhost:4000"
+  process.env.REACT_APP_API_MYSQL_URL || "https://edumochila-api-mysql.onrender.com/api"
 );
 
 export const API_MONGO_URL = stripSlash(
-  process.env.REACT_APP_API_MONGO_URL || "http://localhost:8001"
+  process.env.REACT_APP_API_MONGO_URL || "https://edumochila-api-mongo.onrender.com/api"
 );
 
 export const PAYPAL_CLIENT_ID =
