@@ -2,7 +2,8 @@ import React, { useState } from "react";
 import "./Login.css";
 import { useNavigate } from "react-router-dom";
 import { MdBackpack } from "react-icons/md";
-import { API_URL } from "../env"; // o la ruta correcta
+import { API_URL } from "../env";
+import { setToken } from '../lib/auth';
 
 
 export default function Login() {
@@ -24,41 +25,54 @@ export default function Login() {
 
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/auth/login`, {
-        method: "POST",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ nom_us: nom_us.trim(), pass_us }),
-      });
+  setLoading(true);
+  setMensaje('');
 
-      const data = await res.json().catch(() => ({}));
+  const payload = { nom_us: nom_us.trim(), pass_us };
 
-      if (res.ok && data.estatus === "exitoso" && data.access_token) {
-        // Guarda token y usuario para futuras peticiones
-        localStorage.setItem("token", data.access_token);
-        localStorage.setItem("usuario", JSON.stringify(data.usuario));
+  const res = await fetch(`${API_URL}/api/auth/login`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
 
-        setMensaje("Inicio de sesión exitoso. Redirigiendo…");
+  const data = await res.json().catch(() => null);
 
-        const tip_us = Number(data.usuario?.tip_us ?? 2);
-        // Redirección según rol
-        setTimeout(() => {
-          if (tip_us === 1) {
-            navigate("/dashboard");
-          } else {
-            navigate("/home");
-          }
-        }, 600);
-      } else {
-        setMensaje(data.mensaje || "Usuario o contraseña incorrectos.");
-      }
-    } catch (err) {
-      setMensaje("Error de red: " + err.message);
-    } finally {
-      setLoading(false);
-    }
+  if (!res.ok) {
+    // Mensaje de error que venga del backend o fallback por status
+    const msg =
+      (data && (data.mensaje || data.error)) ||
+      `Error del servidor (${res.status})`;
+    setMensaje(msg);
+    return;
+  }
+
+  if (!data || data.estatus !== 'exitoso' || !data.access_token) {
+    setMensaje(
+      (data && data.mensaje) || 'Respuesta inválida del servidor.'
+    );
+    return;
+  }
+
+  // ✅ guarda token con helper y el usuario
+  setToken(data.access_token);
+  localStorage.setItem('usuario', JSON.stringify(data.usuario));
+
+  setMensaje('Inicio de sesión exitoso. Redirigiendo…');
+
+  const tip_us = Number(data.usuario?.tip_us ?? 2);
+  setTimeout(() => {
+    navigate(tip_us === 1 ? '/dashboard' : '/home', { replace: true });
+  }, 400);
+} catch (err) {
+  setMensaje('Error de red: ' + (err?.message || String(err)));
+} finally {
+  setLoading(false);
+}
+
   };
 
   const handleGoogleLogin = () => {
