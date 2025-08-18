@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import Navbar from "./Navbar";
 import "./Checkout.css";
 import { PayPalButtons } from "@paypal/react-paypal-js";
-import { API_URL } from "../env"; // o la ruta correcta
+import { API_URL } from "../env"; // asegúrate de que apunte a tu API en Render
 
 export default function Checkout() {
   const { id_pr } = useParams();
@@ -14,7 +14,9 @@ export default function Checkout() {
   const [paying, setPaying] = useState(false);
   const [error, setError] = useState("");
 
-  const getToken = () => localStorage.getItem("token") || "";
+  const token = localStorage.getItem("token") || "";
+
+  const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
 
   const formatPrice = (val) => {
     const n = Number(val ?? 0);
@@ -50,7 +52,9 @@ export default function Checkout() {
             if (mounted) setProducto(parsed);
           }
         }
-      } catch {}
+      } catch {
+        /* noop */
+      }
 
       // 2) GET /api/productos/:id
       if (mounted) {
@@ -62,7 +66,9 @@ export default function Checkout() {
             const data = await r.json();
             if (mounted && data) setProducto(data);
           }
-        } catch {}
+        } catch {
+          /* noop */
+        }
 
         // 3) Fallback: GET /api/catalogo
         if (mounted && !producto) {
@@ -144,9 +150,11 @@ export default function Checkout() {
             {!loading && producto && (
               <PayPalButtons
                 style={{ layout: "vertical", shape: "rect" }}
+                disabled={paying || !producto?.disponible}
                 createOrder={(data, actions) => {
-                  // Asegúrate de pasar montos como string con 2 decimales
+                  // Monto con 2 decimales (string)
                   return actions.order.create({
+                    intent: "CAPTURE",
                     purchase_units: [
                       {
                         description: producto?.nom_pr || "EduMochila",
@@ -157,17 +165,20 @@ export default function Checkout() {
                         },
                       },
                     ],
-                    intent: "CAPTURE",
                   });
                 }}
                 onApprove={async (data, actions) => {
+                  setPaying(true);
                   try {
-                    const details = await actions.order.capture(); // si aquí truena, cae al catch
-                    // Registrar en backend
+                    const details = await actions.order.capture();
+
+                    // Registrar venta en backend usando Bearer (SIN cookies)
                     const resp = await fetch(`${API_URL}/api/ventas/paypal`, {
                       method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      credentials: "include",
+                      headers: {
+                        "Content-Type": "application/json",
+                        ...authHeaders, // <-- Authorization: Bearer <token>
+                      },
                       body: JSON.stringify({
                         order_id: details.id,
                         id_pr: producto?.id_pr,
@@ -175,7 +186,7 @@ export default function Checkout() {
                       }),
                     });
 
-                    const text = await resp.text(); // lee texto siempre para log
+                    const text = await resp.text();
                     if (!resp.ok) {
                       throw new Error(
                         `Backend ${resp.status}: ${text.slice(0, 300)}`
@@ -191,6 +202,8 @@ export default function Checkout() {
                       "Hubo un problema registrando tu pago.\n" +
                         (e?.message || "")
                     );
+                  } finally {
+                    setPaying(false);
                   }
                 }}
                 onCancel={() => {
