@@ -144,41 +144,30 @@ export default function Checkout() {
             {!loading && producto && (
               <PayPalButtons
                 style={{ layout: "vertical", shape: "rect" }}
-                disabled={paying || !producto.disponible}
-                forceReRender={[amount, paying, producto?.disponible]}
                 createOrder={(data, actions) => {
-                  // monto desde el producto
+                  // Asegúrate de pasar montos como string con 2 decimales
                   return actions.order.create({
                     purchase_units: [
                       {
                         description: producto?.nom_pr || "EduMochila",
                         custom_id: String(producto?.id_pr || ""),
-                        amount: { currency_code: "MXN", value: amount },
+                        amount: {
+                          currency_code: "MXN",
+                          value: Number(amount).toFixed(2),
+                        },
                       },
                     ],
+                    intent: "CAPTURE",
                   });
                 }}
                 onApprove={async (data, actions) => {
-                  setPaying(true);
                   try {
-                    // Captura en PayPal (client-side)
-                    const details = await actions.order.capture();
-
-                    // Registrar venta en backend
-                    const token = getToken();
-                    if (!token) {
-                      alert("Inicia sesión para continuar.");
-                      navigate("/login");
-                      return;
-                    }
-
+                    const details = await actions.order.capture(); // si aquí truena, cae al catch
+                    // Registrar en backend
                     const resp = await fetch(`${API_URL}/api/ventas/paypal`, {
                       method: "POST",
-                      headers: {
-                        Accept: "application/json",
-                        "Content-Type": "application/json",
-                        Authorization: `Bearer ${token}`,
-                      },
+                      headers: { "Content-Type": "application/json" },
+                      credentials: "include",
                       body: JSON.stringify({
                         order_id: details.id,
                         id_pr: producto?.id_pr,
@@ -186,26 +175,30 @@ export default function Checkout() {
                       }),
                     });
 
+                    const text = await resp.text(); // lee texto siempre para log
                     if (!resp.ok) {
-                      const t = await resp.text();
                       throw new Error(
-                        "No se pudo registrar la venta: " + t.slice(0, 200)
+                        `Backend ${resp.status}: ${text.slice(0, 300)}`
                       );
                     }
 
                     sessionStorage.removeItem("checkout_producto");
                     alert("Pago completado ✨ ¡Gracias por tu compra!");
-                    navigate("/"); // o /gracias
+                    navigate("/");
                   } catch (e) {
-                    console.error(e);
-                    alert("Hubo un problema registrando tu pago.");
-                  } finally {
-                    setPaying(false);
+                    console.error("❌ Error en onApprove:", e);
+                    alert(
+                      "Hubo un problema registrando tu pago.\n" +
+                        (e?.message || "")
+                    );
                   }
                 }}
+                onCancel={() => {
+                  console.warn("Pago cancelado por el usuario");
+                }}
                 onError={(err) => {
-                  console.error("Error PayPal:", err);
-                  alert("Hubo un problema con el pago.");
+                  console.error("PayPal onError:", err);
+                  alert("Error con PayPal. Reintenta o usa otro navegador.");
                 }}
               />
             )}
