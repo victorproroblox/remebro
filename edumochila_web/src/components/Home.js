@@ -1,106 +1,130 @@
-import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { API_URL } from "../env"; // ajusta la ruta si es necesario
+// src/pages/Home.jsx
+import React, { useMemo } from 'react';
+import './Login.css'; // si aquí tienes los estilos globales/hero
+import Navbar from './Navbar';
+import {
+  MdBackpack,
+  MdSecurity,
+  MdGpsFixed,
+  MdScale,
+  MdNotificationsActive,
+  MdShoppingCart
+} from 'react-icons/md';
+import { useNavigate } from 'react-router-dom';
+import { API_URL } from '../env'; // ajusta la ruta si es necesario
 
-export default function Logout() {
+export default function Home() {
   const navigate = useNavigate();
-  const [status, setStatus] = useState("Cerrando sesión…");
 
-  useEffect(() => {
-    let cancelled = false;
-    const controller = new AbortController();
+  const usuario = useMemo(() => {
+    try { return JSON.parse(localStorage.getItem('usuario') || '{}'); }
+    catch { return {}; }
+  }, []);
 
-    const doLogout = async () => {
-      const token = localStorage.getItem("token");
+  const nombre = usuario?.nom1_us || usuario?.nom_us || '';
 
-      try {
-        if (token) {
-          // Intentamos cerrar sesión en el backend (ignora si da 401/403)
-          await fetch(`${API_URL}/api/auth/logout`, {
-            method: "POST",
-            headers: {
-              Accept: "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-            signal: controller.signal,
-          }).catch(() => {});
-        }
-      } catch (_) {
-        // noop
-      } finally {
-        // Siempre limpiamos credenciales del lado del cliente
-        localStorage.removeItem("token");
-        localStorage.removeItem("usuario");
-        sessionStorage.removeItem("checkout_producto");
-
-        if (!cancelled) {
-          setStatus("Sesión cerrada. Redirigiendo…");
-          setTimeout(() => navigate("/"), 700);
-        }
+  const handleLogout = async () => {
+    const token = localStorage.getItem('token');
+    try {
+      if (token) {
+        await fetch(`${API_URL}/api/auth/logout`, {
+          method: 'POST',
+          headers: {
+            Accept: 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+        }).catch(() => {});
       }
-    };
+    } catch (_) {
+      // noop
+    } finally {
+      // limpia siempre del lado cliente
+      localStorage.removeItem('token');
+      localStorage.removeItem('usuario');
+      sessionStorage.removeItem('checkout_producto');
+      navigate('/', { replace: true });
+    }
+  };
 
-    doLogout();
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
-  }, [navigate]);
+  const handleComprar = () => navigate('/catalogo');
 
   return (
-    <div
-      className="logout-page"
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "linear-gradient(135deg,#0f2027,#203a43,#2c5364)",
-      }}
-    >
-      <div
-        className="logout-card"
-        style={{
-          background: "rgba(0,0,0,0.5)",
-          padding: 24,
-          borderRadius: 16,
-          color: "#fff",
-          textAlign: "center",
-          width: 340,
-        }}
-      >
-        <div
-          className="spinner"
-          style={{
-            margin: "0 auto 12px",
-            width: 28,
-            height: 28,
-            border: "3px solid #0af",
-            borderTopColor: "transparent",
-            borderRadius: "50%",
-            animation: "spin 1s linear infinite",
-          }}
-        />
-        <h2 style={{ margin: "0 0 8px" }}>Cerrando sesión</h2>
-        <p style={{ margin: 0, opacity: 0.9 }}>{status}</p>
+    <>
+      <Navbar />
 
-        <button
-          onClick={() => navigate("/")}
-          style={{
-            marginTop: 16,
-            background: "#00aaff",
-            border: 0,
-            color: "#fff",
-            padding: "10px 16px",
-            borderRadius: 8,
-            cursor: "pointer",
-          }}
-        >
-          Ir al inicio
-        </button>
-      </div>
+      <main className="home">
+        {/* HERO */}
+        <section className="home-hero">
+          <div className="home-hero__overlay" />
+          <div className="home-hero__content">
+            <div className="home-hero__icon">
+              <MdBackpack />
+            </div>
 
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-    </div>
+            <h1 className="home-hero__title">EduMochila</h1>
+
+            <p className="home-hero__subtitle">
+              La mochila inteligente que evoluciona contigo
+            </p>
+
+            <p className="home-hero__desc">
+              Sensores, GPS, peso inteligente y asistencia escolar integrada.
+              <strong> EduMochila</strong> cuida a tus peques y potencia su aprendizaje.
+              {nombre ? ` ¡Bienvenid@, ${nombre}!` : ''}
+            </p>
+
+            <div className="home-hero__actions">
+              <button className="btn btn-primary" onClick={handleComprar}>
+                <MdShoppingCart size={20} style={{ marginRight: 8 }} />
+                Comprar ahora
+              </button>
+              <button className="btn btn-outline" onClick={() => navigate('/catalogo')}>
+                Explorar catálogo
+              </button>
+            </div>
+
+            <button className="btn btn-ghost logout" onClick={handleLogout}>
+              Cerrar sesión
+            </button>
+          </div>
+        </section>
+
+        {/* FEATURES */}
+        <section className="home-features">
+          <div className="feature-card">
+            <div className="feature-icon"><MdSecurity /></div>
+            <h3>Seguridad</h3>
+            <p>Detección de metales y alertas en tiempo real para mantener todo bajo control.</p>
+          </div>
+
+          <div className="feature-card">
+            <div className="feature-icon"><MdGpsFixed /></div>
+            <h3>GPS en vivo</h3>
+            <p>Ubicación actualizada y ruta del día para mayor tranquilidad.</p>
+          </div>
+
+          <div className="feature-card">
+            <div className="feature-icon"><MdScale /></div>
+            <h3>Peso inteligente</h3>
+            <p>Monitorea el peso y recibe avisos cuando se excede lo recomendado.</p>
+          </div>
+
+          <div className="feature-card">
+            <div className="feature-icon"><MdNotificationsActive /></div>
+            <h3>Recordatorios</h3>
+            <p>Horario escolar y notificaciones para no olvidar lo importante.</p>
+          </div>
+        </section>
+
+        {/* CTA FINAL */}
+        <section className="home-cta">
+          <h2>List@ para empezar</h2>
+          <p>Equipa a tus hij@s con tecnología pensada para su seguridad y aprendizaje.</p>
+          <button className="btn btn-primary" onClick={handleComprar}>
+            Ir al catálogo
+          </button>
+        </section>
+      </main>
+    </>
   );
 }
