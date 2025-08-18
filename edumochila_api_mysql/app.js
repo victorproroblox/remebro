@@ -18,14 +18,45 @@ import ventasRoutes from './routes/ventas.routes.js';
 
 const app = express();
 
-// Middlewares base
-app.use(helmet());
-app.use(cors());
+/* ----------------------------- CORS CONFIG ----------------------------- */
+// Orígenes permitidos (separados por coma). Ej:
+// ALLOWED_ORIGINS=http://localhost:3000,https://mi-web.onrender.com
+const allowList = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000')
+  .split(',')
+  .map(s => s.trim())
+  .filter(Boolean);
+
+// Misma config para app.use(cors()) y para app.options('*', cors(...))
+const corsOptions = {
+  origin(origin, cb) {
+    // Permite peticiones sin Origin (curl, health checks, etc.)
+    if (!origin) return cb(null, true);
+    if (allowList.includes(origin)) return cb(null, true);
+    return cb(new Error('Not allowed by CORS'));
+  },
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: false,            // déjalo en false si NO usas cookies/sesiones
+  optionsSuccessStatus: 204,     // responde OK en preflight
+};
+/* ---------------------------------------------------------------------- */
+
+/* ------------------------------ MIDDLEWARES ---------------------------- */
+app.use(
+  helmet({
+    // Evita bloqueos de recursos de otros orígenes si en algún momento sirves imágenes u otros assets
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  })
+);
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));      // Manejo explícito del preflight
+
 app.use(express.json({ limit: '2mb' }));
 app.use(morgan('dev'));
-app.use(passport.initialize()); 
+app.use(passport.initialize());
+/* ---------------------------------------------------------------------- */
 
-// Rutas
+/* --------------------------------- RUTAS -------------------------------- */
 app.use('/api', healthRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/auth', googleRoutes);
@@ -34,7 +65,7 @@ app.use('/api/categorias', categoriaRoutes);
 app.use('/api/catalogo', catalogoRoutes);
 app.use('/api/user-product', productoUsRoutes);
 app.use('/api/ventas', ventasRoutes);
-
+/* ----------------------------------------------------------------------- */
 
 // 404
 app.use((req, res) => res.status(404).json({ message: 'Ruta no encontrada' }));
@@ -42,7 +73,7 @@ app.use((req, res) => res.status(404).json({ message: 'Ruta no encontrada' }));
 // Error handler
 app.use(errorHandler);
 
-// Arranque
+/* --------------------------------- ARRANQUE ----------------------------- */
 const port = process.env.PORT || 4000;
 app.listen(port, async () => {
   await testConnection();
