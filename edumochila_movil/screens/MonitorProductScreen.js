@@ -20,7 +20,7 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 const screenWidth = Dimensions.get("window").width;
 
 // 🔧 Ajusta la IP de tu PC para dispositivos físicos
-export const API_URL = "https://edumochila-api-mongo.onrender.com/api";
+export const API_URL = "https://edumochila-api-mongo.onrender.com";
 
 // Helpers
 const toISODate = (date) => {
@@ -57,7 +57,7 @@ export default function MonitorProductScreen({ navigation }) {
       if (!token) return null;
 
       const { ok, data } = await fetchJSON(
-        `${MONGO_API_URL}/api/productos/my`,
+        `${API_URL}/api/productos/my`,
         {
           headers: {
             Accept: "application/json",
@@ -79,7 +79,7 @@ export default function MonitorProductScreen({ navigation }) {
       if (!token) return null;
 
       const { ok, data } = await fetchJSON(
-        `${MONGO_API_URL.replace(":5000", ":4000")}/api/user-product/my`,
+        `${API_URL.replace(":5000", ":4000")}/api/user-product/my`,
         {
           headers: {
             Accept: "application/json",
@@ -121,7 +121,7 @@ export default function MonitorProductScreen({ navigation }) {
       // 📈 Pesos por fecha (GET /api/pesos/:producto_id?fecha=YYYY-MM-DD)
       {
         const { ok, data } = await fetchJSON(
-          `${MONGO_API_URL}/api/pesos/${encodeURIComponent(
+          `${API_URL}/api/pesos/${encodeURIComponent(
             producto_id
           )}?fecha=${encodeURIComponent(fechaStr)}`,
           {
@@ -154,7 +154,7 @@ export default function MonitorProductScreen({ navigation }) {
       // 📍 Ubicaciones por fecha (GET /api/ubicaciones/:producto_id/por-fecha?fecha=YYYY-MM-DD)
       {
         const { ok, data } = await fetchJSON(
-          `${MONGO_API_URL}/api/ubicaciones/${encodeURIComponent(
+          `${API_URL}/api/ubicaciones/${encodeURIComponent(
             producto_id
           )}/por-fecha?fecha=${encodeURIComponent(fechaStr)}`,
           {

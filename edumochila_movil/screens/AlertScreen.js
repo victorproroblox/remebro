@@ -13,7 +13,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import DateTimePicker from "@react-native-community/datetimepicker";
 
-export const API_URL = "https://edumochila-api-mongo.onrender.com/api";
+export const API_URL = "https://edumochila-api-mongo.onrender.com";
 
 async function fetchJSON(url, options = {}) {
   const res = await fetch(url, options);
@@ -41,7 +41,7 @@ export default function AlertScreen({ navigation }) {
     try {
       const token = await AsyncStorage.getItem("token");
       if (!token) return null;
-      const { ok, data } = await fetchJSON(`${MONGO_API_URL}/api/productos/my`, {
+      const { ok, data } = await fetchJSON(`${API_URL}/api/productos/my`, {
         headers: {
           Accept: "application/json",
           "Content-Type": "application/json",
@@ -73,7 +73,7 @@ export default function AlertScreen({ navigation }) {
     const fecha = toISODate(fechaSeleccionada);
 
     const { ok, status, data } = await fetchJSON(
-      `${MONGO_API_URL}/api/mensajes/${encodeURIComponent(
+      `${API_URL}/api/mensajes/${encodeURIComponent(
         producto_id
       )}/${encodeURIComponent(fecha)}`,
       {

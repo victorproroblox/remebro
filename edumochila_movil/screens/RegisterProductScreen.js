@@ -14,13 +14,8 @@ import { LinearGradient } from "expo-linear-gradient";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // 🔧 Ajusta la IP de tu PC si pruebas en dispositivo físico
-const MONGO_API_URL = Platform.select({
-  ios: "http://localhost:5000",       // iOS Simulator
-  android: "http://192.168.1.103:5000",    // Android Emulator
-  default: "http://192.168.1.103:5000" // Dispositivo físico
-});
-// Fallback opcional a la API MySQL (si quieres obtener producto de ahí)
-const MYSQL_API_URL = MONGO_API_URL.replace(":5000", ":4000");
+export const MONGO_API_URL = "https://edumochila-api-mongo.onrender.com";     // sin /api
+export const MYSQL_API_URL = "https://edumochila-api-mysql.onrender.com";
 
 async function fetchJSON(url, options = {}) {
   const res = await fetch(url, options);

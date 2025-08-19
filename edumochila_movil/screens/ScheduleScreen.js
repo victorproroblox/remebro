@@ -15,7 +15,7 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-export const API_URL = "https://edumochila-api-mongo.onrender.com/api";
+export const API_URL = "https://edumochila-api-mongo.onrender.com";
 
 async function fetchJSON(url, options = {}) {
   const res = await fetch(url, options);
@@ -70,7 +70,7 @@ export default function ScheduleScreen({ navigation }) {
     try {
       const token = await AsyncStorage.getItem("token");
       if (!token) return null;
-      const { ok, data } = await fetchJSON(`${MONGO_API_URL}/api/productos/my`, {
+      const { ok, data } = await fetchJSON(`${API_URL}/api/productos/my`, {
         headers: {
           Accept: "application/json",
           "Content-Type": "application/json",
@@ -94,7 +94,7 @@ export default function ScheduleScreen({ navigation }) {
     }
 
     const { ok, data } = await fetchJSON(
-      `${MONGO_API_URL}/api/horario/${encodeURIComponent(pid)}/${encodeURIComponent(diaKey)}`,
+      `${API_URL}/api/horario/${encodeURIComponent(pid)}/${encodeURIComponent(diaKey)}`,
       {
         headers: {
           Accept: "application/json",
@@ -183,7 +183,7 @@ export default function ScheduleScreen({ navigation }) {
       materiales: (materiales || "").trim(), // el backend normaliza a array
     };
 
-    const { ok, data, status } = await fetchJSON(`${MONGO_API_URL}/api/horario/clase`, {
+    const { ok, data, status } = await fetchJSON(`${API_URL}/api/horario/clase`, {
       method: "POST",
       headers: {
         Accept: "application/json",
