@@ -22,7 +22,7 @@ const app = express();
 /* ----------------------------- CORS CONFIG ----------------------------- */
 // Orígenes permitidos (separados por coma). Ej:
 // ALLOWED_ORIGINS=http://localhost:3000,https://mi-web.onrender.com
-const allowList = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000')
+const allowList = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000', 'https://edumochila-web.onrender.com')
   .split(',')
   .map(s => s.trim())
   .filter(Boolean);
