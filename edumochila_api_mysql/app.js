@@ -15,6 +15,7 @@ import categoriaRoutes from './routes/categoria.routes.js';
 import catalogoRoutes from './routes/catalogo.routes.js';
 import productoUsRoutes from './routes/productoUs.routes.js';
 import ventasRoutes from './routes/ventas.routes.js';
+import codigosRoutes from './routes/codigos.routes.js';
 
 const app = express();
 
@@ -65,6 +66,8 @@ app.use('/api/categorias', categoriaRoutes);
 app.use('/api/catalogo', catalogoRoutes);
 app.use('/api/user-product', productoUsRoutes);
 app.use('/api/ventas', ventasRoutes);
+app.use('/api/codigos', codigosRoutes);
+
 /* ----------------------------------------------------------------------- */
 
 // 404

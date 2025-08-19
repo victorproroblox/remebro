@@ -16,6 +16,14 @@
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
 
 --
+-- Current Database: `edumochila`
+--
+
+CREATE DATABASE /*!32312 IF NOT EXISTS*/ `edumochila` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci */;
+
+USE `edumochila`;
+
+--
 -- Table structure for table `cache`
 --
 
@@ -519,6 +527,114 @@ DELIMITER ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
 /*!50003 SET character_set_results = @saved_cs_results */ ;
 /*!50003 SET collation_connection  = @saved_col_connection */ ;
+
+--
+-- Dumping events for database 'edumochila'
+--
+
+--
+-- Dumping routines for database 'edumochila'
+--
+/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
+/*!50003 SET sql_mode              = 'NO_ZERO_IN_DATE,NO_ZERO_DATE,NO_ENGINE_SUBSTITUTION' */ ;
+/*!50003 DROP PROCEDURE IF EXISTS `checkout_paypal` */;
+/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
+/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
+/*!50003 SET @saved_col_connection = @@collation_connection */ ;
+/*!50003 SET character_set_client  = utf8mb4 */ ;
+/*!50003 SET character_set_results = utf8mb4 */ ;
+/*!50003 SET collation_connection  = utf8mb4_general_ci */ ;
+DELIMITER ;;
+CREATE DEFINER=`root`@`localhost` PROCEDURE `checkout_paypal`(
+  IN  p_id_us     INT,
+  IN  p_id_pr     INT,
+  IN  p_total     DECIMAL(20,2),
+  IN  p_order_id  VARCHAR(50),
+  OUT out_id_ve   INT
+)
+BEGIN
+  DECLARE v_id_ve   INT DEFAULT NULL;
+  DECLARE v_precio  DECIMAL(20,2);
+
+  START TRANSACTION;
+
+  SELECT id_ve
+    INTO v_id_ve
+  FROM ventas
+  WHERE paypal_order_id = p_order_id
+  LIMIT 1;
+
+  IF v_id_ve IS NOT NULL THEN
+    SET out_id_ve = v_id_ve;
+    COMMIT;
+  ELSE
+
+    SELECT precio_pr
+      INTO v_precio
+    FROM productos
+    WHERE id_pr = p_id_pr
+      AND status_pr = 1
+    FOR UPDATE;
+
+    IF v_precio IS NULL THEN
+      ROLLBACK;
+      SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Producto inexistente o inactivo';
+    END IF;
+
+    IF p_total IS NULL OR p_total < 0 THEN
+      SET p_total = v_precio;
+    END IF;
+
+    INSERT INTO ventas (id_us, id_pr, total_ve, paypal_order_id)
+    VALUES (p_id_us, p_id_pr, p_total, p_order_id);
+
+    SET out_id_ve = LAST_INSERT_ID();
+    COMMIT;
+  END IF;
+END ;;
+DELIMITER ;
+/*!50003 SET sql_mode              = @saved_sql_mode */ ;
+/*!50003 SET character_set_client  = @saved_cs_client */ ;
+/*!50003 SET character_set_results = @saved_cs_results */ ;
+/*!50003 SET collation_connection  = @saved_col_connection */ ;
+/*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
+/*!50003 SET sql_mode              = 'NO_ZERO_IN_DATE,NO_ZERO_DATE,NO_ENGINE_SUBSTITUTION' */ ;
+/*!50003 DROP PROCEDURE IF EXISTS `decrementar_stock` */;
+/*!50003 SET @saved_cs_client      = @@character_set_client */ ;
+/*!50003 SET @saved_cs_results     = @@character_set_results */ ;
+/*!50003 SET @saved_col_connection = @@collation_connection */ ;
+/*!50003 SET character_set_client  = utf8mb4 */ ;
+/*!50003 SET character_set_results = utf8mb4 */ ;
+/*!50003 SET collation_connection  = utf8mb4_general_ci */ ;
+DELIMITER ;;
+CREATE DEFINER=`root`@`localhost` PROCEDURE `decrementar_stock`(
+  IN p_id_pr INT,
+  IN p_qty   INT
+)
+BEGIN
+  DECLARE v_qty INT DEFAULT 1;
+  IF p_qty IS NULL OR p_qty < 1 THEN
+    SET v_qty = 1;
+  ELSE
+    SET v_qty = p_qty;
+  END IF;
+
+  UPDATE productos
+     SET stock = stock - v_qty
+   WHERE id_pr = p_id_pr
+     AND status_pr = 1
+     AND stock >= v_qty;
+
+  IF ROW_COUNT() = 0 THEN
+    SIGNAL SQLSTATE '45000'
+      SET MESSAGE_TEXT = 'Stock insuficiente o producto inactivo/inexistente';
+  END IF;
+END ;;
+DELIMITER ;
+/*!50003 SET sql_mode              = @saved_sql_mode */ ;
+/*!50003 SET character_set_client  = @saved_cs_client */ ;
+/*!50003 SET character_set_results = @saved_cs_results */ ;
+/*!50003 SET collation_connection  = @saved_col_connection */ ;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
@@ -529,4 +645,4 @@ DELIMITER ;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2025-08-19  4:44:12
+-- Dump completed on 2025-08-19  5:45:15
