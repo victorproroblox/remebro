@@ -13,7 +13,7 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-export const API_URL = "https://edumochila-api-mysql.onrender.com/api";
+export const API_URL = "https://edumochila-api-mysql.onrender.com";
 
 
 export default function LoginScreen({ navigation }) {
