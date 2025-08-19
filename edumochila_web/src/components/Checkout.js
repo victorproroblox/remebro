@@ -15,7 +15,6 @@ export default function Checkout() {
   const [error, setError] = useState("");
 
   const token = localStorage.getItem("token") || "";
-
   const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
 
   const formatPrice = (val) => {
@@ -43,7 +42,7 @@ export default function Checkout() {
       setLoading(true);
       setError("");
 
-      // 1) Intento snapshot del catálogo
+      // 1) Snapshot del catálogo (precarga)
       try {
         const snap = sessionStorage.getItem("checkout_producto");
         if (snap) {
@@ -172,12 +171,12 @@ export default function Checkout() {
                   try {
                     const details = await actions.order.capture();
 
-                    // Registrar venta en backend usando Bearer (SIN cookies)
+                    // Registrar venta en backend usando Bearer (sin cookies)
                     const resp = await fetch(`${API_URL}/api/ventas/paypal`, {
                       method: "POST",
                       headers: {
                         "Content-Type": "application/json",
-                        ...authHeaders, // <-- Authorization: Bearer <token>
+                        ...authHeaders, // Authorization: Bearer <token>
                       },
                       body: JSON.stringify({
                         order_id: details.id,
@@ -193,9 +192,16 @@ export default function Checkout() {
                       );
                     }
 
+                    // Limpieza y navegación a la pantalla de éxito
                     sessionStorage.removeItem("checkout_producto");
-                    alert("Pago completado ✨ ¡Gracias por tu compra!");
-                    navigate("/");
+                    sessionStorage.setItem(
+                      "last_compra_producto_id",
+                      String(producto?.id_pr || "")
+                    );
+
+                    navigate("/compra-exitosa", {
+                      state: { producto_id: producto?.id_pr },
+                    });
                   } catch (e) {
                     console.error("❌ Error en onApprove:", e);
                     alert(
