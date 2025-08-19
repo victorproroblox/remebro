@@ -1,6 +1,7 @@
 import axios from 'axios';
 import Venta from '../models/Venta.js';
 import Producto from '../models/Producto.js';
+import { sequelize } from '../config/database.js';
 
 /**
  * GET /api/ventas
