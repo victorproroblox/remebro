@@ -13,11 +13,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import DateTimePicker from "@react-native-community/datetimepicker";
 
-const MONGO_API_URL = Platform.select({
-  ios: "http://localhost:5000",       // iOS Simulator
-  android: "http://192.168.1.103:5000",    // Android Emulator
-  default: "http://192.168.1.103:5000" // Dispositivo físico: cambia por la IP de tu PC
-});
+export const API_URL = "https://edumochila-api-mongo.onrender.com/api";
 
 async function fetchJSON(url, options = {}) {
   const res = await fetch(url, options);

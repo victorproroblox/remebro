@@ -20,11 +20,7 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 const screenWidth = Dimensions.get("window").width;
 
 // 🔧 Ajusta la IP de tu PC para dispositivos físicos
-const MONGO_API_URL = Platform.select({
-  ios: "http://localhost:5000",       // iOS Simulator
-  android: "http://192.168.1.103:5000",    // Android Emulator
-  default: "http://192.168.1.103:5000" // Dispositivo físico
-});
+export const API_URL = "https://edumochila-api-mongo.onrender.com/api";
 
 // Helpers
 const toISODate = (date) => {

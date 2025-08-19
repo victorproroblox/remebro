@@ -12,11 +12,7 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 
-const API_URL = Platform.select({
-  ios: "http://localhost:4000",        // iOS Simulator
-  android: "http://192.168.1.103:4000",     // Android Emulator
-  default: "http://192.168.1.103:4000", // Dispositivo físico: cambia por la IP de tu PC
-});
+export const API_URL = "https://edumochila-api-mysql.onrender.com";
 
 export default function RegisterScreen({ navigation }) {
   const [form, setForm] = useState({
