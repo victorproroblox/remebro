@@ -256,3 +256,66 @@
   color: #bfefff;
   border-color: rgba(0,207,255,0.45);
 }
+
+/* ====== CONTROLES: ORDEN POR BOTONES ====== */
+.order-group {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+}
+
+.order-btn {
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(0,0,0,0.25);
+  color: #e9f1f5;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background .2s ease, box-shadow .2s ease, border-color .2s ease, transform .1s ease;
+}
+
+.order-btn:hover {
+  background: rgba(255,255,255,0.10);
+}
+
+.order-btn:active {
+  transform: translateY(1px);
+}
+
+.order-btn:focus-visible {
+  outline: none;
+  border-color: rgba(0,207,255,0.8);
+  box-shadow: 0 0 0 3px rgba(0,207,255,0.15);
+}
+
+/* Botón activo (orden seleccionado) */
+.order-btn.active {
+  background: #00cfff;
+  color: #00131a;
+  border-color: transparent;
+  box-shadow: 0 8px 24px rgba(0,207,255,0.35);
+}
+
+/* Botón para limpiar orden */
+.order-reset {
+  background: rgba(255,255,255,0.08);
+  color: #d3e6ee;
+}
+.order-reset:hover {
+  background: rgba(255,255,255,0.12);
+}
+
+/* Responsive fino */
+@media (max-width: 560px) {
+  .order-group {
+    justify-content: center;
+  }
+  .order-btn {
+    min-width: 170px;
+    text-align: center;
+  }
+}
