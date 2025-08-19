@@ -1,84 +1,101 @@
+// app.js
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
-import passport from 'passport';
+import compression from 'compression';
+import mongoose from 'mongoose';
 
-import { testConnection } from './config/database.js';
+// 🔀 Ajusta estas rutas si tus archivos se llaman diferente
 import healthRoutes from './routes/health.routes.js';
-import { errorHandler } from './middlewares/errorHandler.js';
-import authRoutes from './routes/auth.routes.js';
-import googleRoutes from './routes/auth.google.routes.js';
-import productoRoutes from './routes/producto.routes.js';
-import categoriaRoutes from './routes/categoria.routes.js';
-import catalogoRoutes from './routes/catalogo.routes.js';
-import productoUsRoutes from './routes/productoUs.routes.js';
-import ventasRoutes from './routes/ventas.routes.js';
-import codigosRoutes from './routes/codigos.routes.js';
+import ubicacionesRoutes from './routes/ubicaciones.routes.js';
 
 const app = express();
 
-/* ----------------------------- CORS CONFIG ----------------------------- */
-// Orígenes permitidos (separados por coma). Ej:
-// ALLOWED_ORIGINS=http://localhost:3000,https://mi-web.onrender.com
-const allowList = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000', 'https://edumochila-web.onrender.com')
-  .split(',')
-  .map(s => s.trim())
-  .filter(Boolean);
+/* ========================
+   C O R S   C O N F I G
+   ======================== */
+const allowedOrigins = [
+  'http://localhost:3000',
+  'https://edumochila-web.onrender.com',
+];
 
-// Misma config para app.use(cors()) y para app.options('*', cors(...))
 const corsOptions = {
-  origin(origin, cb) {
-    // Permite peticiones sin Origin (curl, health checks, etc.)
-    if (!origin) return cb(null, true);
-    if (allowList.includes(origin)) return cb(null, true);
-    return cb(new Error('Not allowed by CORS'));
+  origin: (origin, cb) => {
+    // Permite llamadas sin origin (curl/Postman) y las de la lista
+    if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+    return cb(new Error('CORS: origin no permitido'), false);
   },
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: false,            // déjalo en false si NO usas cookies/sesiones
-  optionsSuccessStatus: 204,     // responde OK en preflight
+  credentials: false, // ponlo en true sólo si usas cookies/sesiones
+  maxAge: 86400,      // cache del preflight (1 día)
 };
-/* ---------------------------------------------------------------------- */
 
-/* ------------------------------ MIDDLEWARES ---------------------------- */
-app.use(
-  helmet({
-    // Evita bloqueos de recursos de otros orígenes si en algún momento sirves imágenes u otros assets
-    crossOriginResourcePolicy: { policy: 'cross-origin' },
-  })
-);
 app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));      // Manejo explícito del preflight
+app.options('*', cors(corsOptions)); // Preflight
 
+/* ========================
+   M I D D L E W A R E S
+   ======================== */
+app.use(helmet());
+app.use(compression());
 app.use(express.json({ limit: '2mb' }));
 app.use(morgan('dev'));
-app.use(passport.initialize());
-/* ---------------------------------------------------------------------- */
 
-/* --------------------------------- RUTAS -------------------------------- */
-app.use('/api', healthRoutes);
-app.use('/api/auth', authRoutes);
-app.use('/api/auth', googleRoutes);
-app.use('/api/productos', productoRoutes);
-app.use('/api/categorias', categoriaRoutes);
-app.use('/api/catalogo', catalogoRoutes);
-app.use('/api/user-product', productoUsRoutes);
-app.use('/api/ventas', ventasRoutes);
-app.use('/api/codigos', codigosRoutes);
+/* ========================
+   R U T A S
+   ======================== */
+app.use('/api/health', healthRoutes);
+app.use('/api/ubicaciones', ubicacionesRoutes);
 
-/* ----------------------------------------------------------------------- */
-
-// 404
-app.use((req, res) => res.status(404).json({ message: 'Ruta no encontrada' }));
-
-// Error handler
-app.use(errorHandler);
-
-/* --------------------------------- ARRANQUE ----------------------------- */
-const port = process.env.PORT || 4000;
-app.listen(port, async () => {
-  await testConnection();
-  console.log(`🚀 API MySQL lista en http://localhost:${port}`);
+/* ========================
+   4 0 4  &  E R R O R E S
+   ======================== */
+app.use((req, res) => {
+  res.status(404).json({ message: 'Ruta no encontrada' });
 });
+
+// Error handler simple (si ya tienes uno propio, usa ese)
+app.use((err, req, res, next) => {
+  console.error('🔥 Error:', err?.message || err);
+  const status = err.status || 500;
+  res.status(status).json({
+    message: err?.message || 'Error en el servidor',
+  });
+});
+
+/* ========================
+   M O N G O   C O N N
+   ======================== */
+const MONGO_URI = process.env.MONGODB_URI || process.env.MONGO_URI;
+const MONGO_DB  = process.env.MONGODB_DB  || process.env.MONGO_DB || 'mochila_iot';
+
+async function start() {
+  try {
+    if (!MONGO_URI) {
+      throw new Error('Falta MONGODB_URI en variables de entorno');
+    }
+
+    await mongoose.connect(MONGO_URI, {
+      dbName: MONGO_DB,
+      autoIndex: true,
+      serverSelectionTimeoutMS: 10000,
+    });
+
+    console.log(`✅ Conectado a MongoDB (db: ${MONGO_DB})`);
+
+    const port = process.env.PORT || 5000;
+    app.listen(port, () => {
+      console.log(`🚀 API Mongo escuchando en http://localhost:${port}`);
+    });
+  } catch (err) {
+    console.error('❌ Error al iniciar API Mongo:', err.message);
+    process.exit(1);
+  }
+}
+
+start();
+
+export default app;
