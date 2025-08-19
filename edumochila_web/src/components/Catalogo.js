@@ -2,17 +2,13 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "./Catalogo.css";
 import Navbar from "./Navbar";
-import { API_URL } from "../env"; // o la ruta correcta
-
-// Usa .env (Vite) para no hardcodear el host:
-// VITE_API_MYSQL_URL=http://localhost:4000
-
+import { API_URL } from "../env"; // asegúrate de que apunte a tu API
 
 export default function Catalogo() {
   const navigate = useNavigate();
   const [productos, setProductos] = useState([]);
   const [query, setQuery] = useState("");
-  const [orden, setOrden] = useState("relevancia"); // relevancia | precio_asc | precio_desc | nombre
+  const [orden, setOrden] = useState("nombre"); // precio_asc | precio_desc | nombre
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -68,7 +64,7 @@ export default function Catalogo() {
         );
         break;
       default:
-        // relevancia: dejamos el orden del backend
+        // Si llegara un valor desconocido, no reordenamos.
         break;
     }
     return list;
@@ -126,7 +122,6 @@ export default function Catalogo() {
                 value={orden}
                 onChange={(e) => setOrden(e.target.value)}
               >
-                <option value="relevancia">Relevancia</option>
                 <option value="precio_asc">Precio: menor a mayor</option>
                 <option value="precio_desc">Precio: mayor a menor</option>
                 <option value="nombre">Nombre (A–Z)</option>
