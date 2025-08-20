@@ -21,7 +21,7 @@ const screenWidth = Dimensions.get("window").width;
 
 /** ====== BASES DE API ====== */
 export const API_MONGO = "https://edumochila-api-mongo.onrender.com";
-export const API_MYSQL = "https://edumochila-api-mysql.onrender.com"; // <-- cámbiala
+export const API_MYSQL = "https://edumochila-api-mysql.onrender.com";
 
 /** ====== HELPERS ====== */
 const toISODate = (date) => {
@@ -37,6 +37,47 @@ async function fetchJSON(url, options = {}) {
   return { ok: res.ok, status: res.status, data };
 }
 
+// DEBUG: para ver qué hay guardado
+async function dumpTokens() {
+  try {
+    const keys = await AsyncStorage.getAllKeys();
+    const entries = await AsyncStorage.multiGet(keys);
+    console.log("ASYNCSTORAGE →", Object.fromEntries(entries));
+  } catch (e) {}
+}
+
+/** ==== Opción A: asegurar mongo_token sin exchange ==== */
+async function bootstrapAuth() {
+  const existingMongo = await AsyncStorage.getItem("mongo_token");
+  if (existingMongo) {
+    console.log("BOOTSTRAP → mongo_token ya existía");
+    return;
+  }
+  const mysqlToken =
+    (await AsyncStorage.getItem("mysql_token")) ||
+    (await AsyncStorage.getItem("token")); // fallback genérico
+  if (mysqlToken) {
+    await AsyncStorage.setItem("mongo_token", mysqlToken);
+    console.log("BOOTSTRAP → mongo_token seteado desde mysql_token/token");
+  } else {
+    console.log("BOOTSTRAP → no hay mysql_token ni token");
+  }
+  await dumpTokens();
+}
+
+async function ensureMongoTokenOnce() {
+  const existingMongo = await AsyncStorage.getItem("mongo_token");
+  if (existingMongo) return true;
+  const mysqlToken =
+    (await AsyncStorage.getItem("mysql_token")) ||
+    (await AsyncStorage.getItem("token"));
+  if (mysqlToken) {
+    await AsyncStorage.setItem("mongo_token", mysqlToken);
+    return true;
+  }
+  return false;
+}
+
 async function authHeadersForMongo() {
   const token = await AsyncStorage.getItem("mongo_token");
   const headers = {
@@ -44,24 +85,12 @@ async function authHeadersForMongo() {
     "Content-Type": "application/json",
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
-  // DEBUG: esto se verá en la consola de Expo/Metro
-  console.log("HDR MONGO →", headers.Authorization ? headers.Authorization : "SIN AUTH");
+  // DEBUG: ver si realmente mandamos Authorization
+  console.log(
+    "HDR MONGO →",
+    headers.Authorization ? headers.Authorization : "SIN AUTH"
+  );
   return headers;
-}
-
-
-/** ==== Opción A: asegurar mongo_token sin exchange ==== */
-async function ensureMongoTokenOnce() {
-  const existingMongo = await AsyncStorage.getItem("mongo_token");
-  if (existingMongo) return true;
-
-  // Copia el token de MySQL si existe (mismo JWT para ambas APIs)
-  const mysqlToken = await AsyncStorage.getItem("mysql_token");
-  if (mysqlToken) {
-    await AsyncStorage.setItem("mongo_token", mysqlToken);
-    return true;
-  }
-  return false;
 }
 
 /** ====== COMPONENTE ====== */
@@ -76,6 +105,12 @@ export default function MonitorProductScreen({ navigation }) {
   const [mostrarPicker, setMostrarPicker] = useState(false);
 
   const warnedRef = useRef(false); // evitar múltiples alerts
+
+  useEffect(() => {
+    Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }).start();
+    // Copia token si hace falta (mysql_token/token -> mongo_token)
+    bootstrapAuth();
+  }, []);
 
   /** Obtiene y cachea el producto_id del usuario */
   const getProductoId = async () => {
@@ -95,7 +130,9 @@ export default function MonitorProductScreen({ navigation }) {
 
     // 2) MySQL (fallback)
     try {
-      const mysqlToken = await AsyncStorage.getItem("mysql_token");
+      const mysqlToken =
+        (await AsyncStorage.getItem("mysql_token")) ||
+        (await AsyncStorage.getItem("token"));
       const { ok, data } = await fetchJSON(`${API_MYSQL}/api/user-product/my`, {
         headers: {
           Accept: "application/json",
@@ -122,7 +159,6 @@ export default function MonitorProductScreen({ navigation }) {
         "Sesión",
         "No hay token válido. Inicia sesión para ver datos protegidos."
       );
-      // NO redirigimos: permitimos que la UI quede visible
     }
 
     const producto_id = await getProductoId();
@@ -204,8 +240,8 @@ export default function MonitorProductScreen({ navigation }) {
   };
 
   useEffect(() => {
-    Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }).start();
     cargarDatos(fechaSeleccionada);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fechaSeleccionada]);
 
   return (

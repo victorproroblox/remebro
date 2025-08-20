@@ -7,14 +7,13 @@ import {
   StyleSheet,
   Alert,
   ActivityIndicator,
-  Platform,
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+/** API MySQL (emite el JWT que usaremos también para Mongo) */
 export const API_URL = "https://edumochila-api-mysql.onrender.com";
-
 
 export default function LoginScreen({ navigation }) {
   const [username, setUsername] = useState("");
@@ -22,7 +21,11 @@ export default function LoginScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
-    if (!username || !password) {
+    if (loading) return;
+    const u = username.trim();
+    const p = password.trim();
+
+    if (!u || !p) {
       Alert.alert("Campos vacíos", "Ingresa tu usuario y contraseña");
       return;
     }
@@ -37,26 +40,37 @@ export default function LoginScreen({ navigation }) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          nom_us: username,
-          pass_us: password,
+          nom_us: u,
+          pass_us: p,
         }),
       });
 
       const data = await res.json().catch(() => ({}));
+      console.log("LOGIN → status:", res.status, "data:", data);
 
-      if (res.ok && data.estatus === "exitoso" && data.access_token) {
-        await AsyncStorage.setItem("token", data.access_token);
-        await AsyncStorage.setItem("user", JSON.stringify(data.usuario));
+      if (res.ok && data?.estatus === "exitoso" && data?.access_token) {
+        const token = String(data.access_token);
+
+        // Guardamos bajo varias claves:
+        await AsyncStorage.multiSet([
+          ["token", token],          // compat histórico
+          ["mysql_token", token],    // emite MySQL
+          ["mongo_token", token],    // Opción A: mismo JWT para Mongo
+          ["user", JSON.stringify(data.usuario ?? {})],
+        ]);
+
         Alert.alert("Bienvenido", data.mensaje || "Inicio de sesión correcto");
         navigation.replace("Home");
-      } else {
-        const msg =
-          data.mensaje ||
-          (res.status === 401
-            ? "Usuario o contraseña incorrectos"
-            : "Error al iniciar sesión");
-        Alert.alert("Error", msg);
+        return;
       }
+
+      // Errores manejados por backend
+      const msg =
+        data?.mensaje ||
+        (res.status === 401
+          ? "Usuario o contraseña incorrectos"
+          : `Error al iniciar sesión (código ${res.status})`);
+      Alert.alert("Error", msg);
     } catch (error) {
       console.error("Error de conexión:", error);
       Alert.alert("Error", "No se pudo conectar al servidor");
@@ -66,41 +80,25 @@ export default function LoginScreen({ navigation }) {
   };
 
   return (
-    <LinearGradient
-      colors={["#0f2027", "#203a43", "#2c5364"]}
-      style={styles.container}
-    >
+    <LinearGradient colors={["#0f2027", "#203a43", "#2c5364"]} style={styles.container}>
       <View style={styles.card}>
-        <MaterialCommunityIcons
-          name="bag-personal-outline"
-          size={90}
-          color="#00aaff"
-        />
+        <MaterialCommunityIcons name="bag-personal-outline" size={90} color="#00aaff" />
         <Text style={styles.title}>EDUMOCHILA</Text>
 
         <View style={styles.tabContainer}>
           <TouchableOpacity style={[styles.tab, styles.activeTab]}>
-            <Text style={[styles.tabText, styles.activeTabText]}>
-              Iniciar sesión
-            </Text>
+            <Text style={[styles.tabText, styles.activeTabText]}>Iniciar sesión</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.tab, styles.inactiveTab]}
             onPress={() => navigation.navigate("Register")}
           >
-            <Text style={[styles.tabText, styles.inactiveTabText]}>
-              Registrarte
-            </Text>
+            <Text style={[styles.tabText, styles.inactiveTabText]}>Registrarte</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.inputContainer}>
-          <Ionicons
-            name="person-outline"
-            size={20}
-            color="#aaa"
-            style={styles.icon}
-          />
+          <Ionicons name="person-outline" size={20} color="#aaa" style={styles.icon} />
           <TextInput
             placeholder="Nombre de usuario"
             placeholderTextColor="#aaa"
@@ -109,16 +107,12 @@ export default function LoginScreen({ navigation }) {
             onChangeText={setUsername}
             autoCapitalize="none"
             autoCorrect={false}
+            returnKeyType="next"
           />
         </View>
 
         <View style={styles.inputContainer}>
-          <Ionicons
-            name="lock-closed-outline"
-            size={20}
-            color="#aaa"
-            style={styles.icon}
-          />
+          <Ionicons name="lock-closed-outline" size={20} color="#aaa" style={styles.icon} />
           <TextInput
             placeholder="Contraseña"
             placeholderTextColor="#aaa"
@@ -126,26 +120,25 @@ export default function LoginScreen({ navigation }) {
             style={styles.input}
             value={password}
             onChangeText={setPassword}
+            returnKeyType="done"
+            onSubmitEditing={handleLogin}
           />
         </View>
 
-        <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.loginButtonText}>Ingresar</Text>
-          )}
+        <TouchableOpacity
+          style={[styles.loginButton, loading && { opacity: 0.7 }]}
+          onPress={handleLogin}
+          disabled={loading}
+        >
+          {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.loginButtonText}>Ingresar</Text>}
         </TouchableOpacity>
       </View>
     </LinearGradient>
   );
 }
 
-
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
+  container: { flex: 1 },
   card: {
     flex: 1,
     backgroundColor: "rgba(255,255,255,0.04)",
@@ -168,29 +161,12 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     marginBottom: 30,
   },
-  tab: {
-    paddingVertical: 8,
-    paddingHorizontal: 20,
-  },
-  tabText: {
-    fontSize: 14,
-  },
-  activeTab: {
-    backgroundColor: "#00aaff",
-    borderRadius: 20,
-  },
-  activeTabText: {
-    color: "white",
-    fontWeight: "bold",
-  },
-  inactiveTab: {
-    borderColor: "white",
-    borderWidth: 1,
-    borderRadius: 20,
-  },
-  inactiveTabText: {
-    color: "white",
-  },
+  tab: { paddingVertical: 8, paddingHorizontal: 20 },
+  tabText: { fontSize: 14 },
+  activeTab: { backgroundColor: "#00aaff", borderRadius: 20 },
+  activeTabText: { color: "white", fontWeight: "bold" },
+  inactiveTab: { borderColor: "white", borderWidth: 1, borderRadius: 20 },
+  inactiveTabText: { color: "white" },
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -201,13 +177,8 @@ const styles = StyleSheet.create({
     marginBottom: 18,
     width: "100%",
   },
-  icon: {
-    marginRight: 10,
-  },
-  input: {
-    flex: 1,
-    color: "white",
-  },
+  icon: { marginRight: 10 },
+  input: { flex: 1, color: "white" },
   loginButton: {
     backgroundColor: "#00aaff",
     borderRadius: 25,
@@ -217,9 +188,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 20,
   },
-  loginButtonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "bold",
-  },
+  loginButtonText: { color: "white", fontSize: 16, fontWeight: "bold" },
 });
