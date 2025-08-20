@@ -1,16 +1,15 @@
+// routes/auth.routes.js
 import { Router } from 'express';
-import * as auth from '../controllers/auth.controller.js';
+import { login, register, logout, dbCheck } from '../controllers/auth.controller.js';
 
 const router = Router();
 
 // /api/auth/...
-router.post('/login', auth.login);
-router.post('/register', auth.register);
+router.post('/login', login);
+router.post('/register', register);
+router.post('/logout', logout);
 
-// Opcional: cerrar sesión “lógico” (blacklist simple en cliente)
-router.post('/logout', auth.logout);
-
-// Probar conexión DB estilo verificarConexion()
-router.get('/db-check', auth.dbCheck);
+// Verificar conexión a la base de datos
+router.get('/db-check', dbCheck);
 
 export default router;
