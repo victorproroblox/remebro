@@ -16,6 +16,8 @@ import ventasRoutes from './routes/ventas.routes.js';
 import codigosRoutes from './routes/codigos.routes.js';
 import estadosRoutes from './routes/estados.routes.js';
 import alumnosRoutes from './routes/alumnos.routes.js';
+import authRoutes from './routes/auth.routes.js';
+import googleRoutes from './routes/auth.google.routes.js';
 
 const app = express();
 
