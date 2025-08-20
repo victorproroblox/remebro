@@ -23,7 +23,7 @@ const app = express();
 
 /* ----------------------------- CORS CONFIG ----------------------------- */
 // Si ALLOWED_ORIGINS no viene, usa localhost y tu dominio de Render.
-const corsDefaults = 'http://localhost:3000,https://edumochila-web.onrender.com';
+const corsDefaults = 'http://localhost:3000,https://edumochila-web.onrender.com, http://localhost:3000, https://edumochila-api-mysql.onrender.com/api/auth/login' ;
 const allowList = (process.env.ALLOWED_ORIGINS && process.env.ALLOWED_ORIGINS.trim().length > 0
   ? process.env.ALLOWED_ORIGINS
   : corsDefaults
