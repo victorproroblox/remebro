@@ -21,7 +21,7 @@ const screenWidth = Dimensions.get("window").width;
 
 /** ====== BASES DE API ====== */
 export const API_MONGO = "https://edumochila-api-mongo.onrender.com";
-export const API_MYSQL = "https://TU-API-MYSQL.com"; // <-- cámbiala
+export const API_MYSQL = "https://edumochila-api-mysql.onrender.com"; // <-- cámbiala
 
 /** ====== HELPERS ====== */
 const toISODate = (date) => {
@@ -46,29 +46,14 @@ async function authHeadersForMongo() {
   };
 }
 
-/** ==== Workaround: asegurar mongo_token sin sacar al usuario ==== */
+/** ==== Opción A: asegurar mongo_token sin exchange ==== */
 async function ensureMongoTokenOnce() {
-  let mongoToken = await AsyncStorage.getItem("mongo_token");
-  if (mongoToken) return true;
+  const existingMongo = await AsyncStorage.getItem("mongo_token");
+  if (existingMongo) return true;
 
-  // 1) Intenta “exchange” si existiera (ignorado si 404)
+  // Copia el token de MySQL si existe (mismo JWT para ambas APIs)
   const mysqlToken = await AsyncStorage.getItem("mysql_token");
   if (mysqlToken) {
-    try {
-      const r = await fetchJSON(`${API_MONGO}/api/auth/exchange`, {
-        method: "POST",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${mysqlToken}`,
-        },
-      });
-      if (r.ok && r.data?.token) {
-        await AsyncStorage.setItem("mongo_token", r.data.token);
-        return true;
-      }
-    } catch (_) {}
-    // 2) Si no hay exchange en backend, copia temporalmente el mysql_token
     await AsyncStorage.setItem("mongo_token", mysqlToken);
     return true;
   }
