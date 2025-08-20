@@ -4,10 +4,14 @@ import { sequelize } from '../config/database.js';
 const UsuarioProducto = sequelize.define('usuario_productos', {
   id_us: {
     type: DataTypes.INTEGER,
-    allowNull: true, // así está en tu BD; lógicamente debería ser NOT NULL
+    allowNull: true,
   },
   producto_id: {
-    type: DataTypes.STRING(10), // tu columna es varchar(10)
+    type: DataTypes.STRING(10),
+    allowNull: true
+  },
+  nom_alumno: {
+    type: DataTypes.STRING(100),
     allowNull: true
   }
 }, {

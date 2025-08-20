@@ -9,6 +9,6 @@ router.get('/:producto_id/hoy', recorridoDelDia);
 router.get('/:producto_id/por-fecha', recorridoPorFecha);
 
 // Ingesta desde IoT (déjalo abierto o protégelo con API key)
-router.post("/ingest", store);
+router.post('/', store);
 
 export default router;
