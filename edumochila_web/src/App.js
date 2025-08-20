@@ -14,7 +14,7 @@ import EditarProducto from './components/EditarProducto';
 import Checkout from './components/Checkout';
 import CompraExitosa from "./components/CompraExitosa";
 import MaestroHome from "./components/MaestroHome";
-import MaestroSalon from "./MaestroSalon";
+import MaestroSalon from "./components/MaestroSalon";
 
 function App() {
   return (
