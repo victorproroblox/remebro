@@ -11,6 +11,6 @@ router.get('/:producto_id/hoy',        authGuard, recorridoDelDia);
 router.get('/:producto_id/por-fecha',  authGuard, recorridoPorFecha);
 
 // Ingesta desde IoT (déjalo abierto o protégelo con API key)
-router.post("/ingest", ingestGuard, Ubic.create);
+router.post("/ingest", ingestGuard, store);
 
 export default router;
