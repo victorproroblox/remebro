@@ -81,70 +81,64 @@ export default function MaestroSalon() {
   };
 
   return (
-    <main className="p-6 max-w-3xl mx-auto">
-      <header className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">Este es tu salón de clases</h1>
-        <button
-          className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
-          onClick={() => setShowForm((s) => !s)}
-        >
-          {showForm ? 'Cerrar' : 'Agregar alumno'}
-        </button>
-      </header>
-
-      {msg && <p className="mb-4 text-sm">{msg}</p>}
-
-      {showForm && (
-        <form onSubmit={handleSubmit} className="mb-6 grid gap-3 bg-gray-50 p-4 rounded">
-          <div>
-            <label className="block text-sm mb-1">Nombre del alumno</label>
-            <input
-              name="nom_alumno"
-              value={form.nom_alumno}
-              onChange={handleChange}
-              maxLength={100}
-              className="w-full border rounded px-3 py-2"
-              placeholder="Ej. Juan Pérez"
-              required
-            />
+    <main className="msalon">
+      {/* HERO */}
+      <section className="msalon-hero">
+        <div className="msalon-hero__overlay" />
+        <div className="msalon-hero__content">
+          <div className="msalon-hero__icon">🎓</div>
+          <h1 className="msalon-hero__title">Este es tu salón de clases</h1>
+          <p className="msalon-hero__subtitle">
+            Administra a tus alumnos y vincula sus producto_id
+          </p>
+          <div className="msalon-actions">
+            <button className="btn-primary" onClick={() => setShowForm((s) => !s)}>
+              {showForm ? 'Cerrar' : 'Agregar alumno'}
+            </button>
           </div>
-          <div>
-            <label className="block text-sm mb-1">Producto ID</label>
-            <input
-              name="producto_id"
-              value={form.producto_id}
-              onChange={handleChange}
-              maxLength={10}
-              className="w-full border rounded px-3 py-2"
-              placeholder="Ej. 123456"
-              required
-            />
-          </div>
-          <button
-            disabled={loading}
-            className="mt-2 px-4 py-2 rounded bg-green-600 text-white hover:bg-green-700 disabled:opacity-60"
-          >
-            {loading ? 'Guardando...' : 'Guardar alumno'}
-          </button>
-        </form>
-      )}
 
-      <section>
-        <h2 className="text-lg font-semibold mb-3">Alumnos registrados</h2>
+          {showForm && (
+            <form onSubmit={handleSubmit} className="form-alumno">
+              <input
+                name="nom_alumno"
+                value={form.nom_alumno}
+                onChange={handleChange}
+                placeholder="Nombre del alumno"
+                maxLength={100}
+                required
+              />
+              <input
+                name="producto_id"
+                value={form.producto_id}
+                onChange={handleChange}
+                placeholder="Producto ID"
+                maxLength={10}
+                required
+              />
+              <button className="btn-success" disabled={loading}>
+                {loading ? 'Guardando...' : 'Guardar'}
+              </button>
+            </form>
+          )}
+        </div>
+      </section>
+
+      {/* LISTA */}
+      <section className="msalon-list">
+        <h2>Alumnos registrados</h2>
+        {msg && <p>{msg}</p>}
         {alumnos.length === 0 ? (
-          <p className="text-sm text-gray-600">Aún no hay alumnos.</p>
+          <div className="msalon-empty">Aún no hay alumnos.</div>
         ) : (
-          <ul className="divide-y rounded border">
+          <ul className="grid-alumnos">
             {alumnos.map((a) => (
-              <li key={a.producto_id} className="flex items-center justify-between p-3">
-                <div>
-                  <p className="font-medium">{a.nom_alumno || '(Sin nombre)'}</p>
-                  <p className="text-sm text-gray-600">Producto ID: {a.producto_id}</p>
+              <li key={a.producto_id} className="al-card">
+                <div className="al-avatar">{(a.nom_alumno || '?').slice(0, 2).toUpperCase()}</div>
+                <div className="al-info">
+                  <h3>{a.nom_alumno}</h3>
+                  <p>Producto ID: {a.producto_id}</p>
                 </div>
-                <button
-                  className="px-3 py-1 rounded bg-red-600 text-white hover:bg-red-700"
-                  onClick={() => handleDelete(a.producto_id)}
-                >
+                <button className="btn-danger" onClick={() => handleDelete(a.producto_id)}>
                   Eliminar
                 </button>
               </li>

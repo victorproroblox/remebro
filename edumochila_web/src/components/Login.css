@@ -962,3 +962,41 @@
   .grid-alumnos { grid-template-columns: 1fr; }
   .msalon-hero__content { padding: 18px; border-radius: 18px; }
 }
+
+/* Botones genéricos */
+.btn-primary, .btn-success, .btn-danger {
+  border: none;
+  padding: 10px 16px;
+  border-radius: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform .05s ease, filter .2s ease;
+}
+.btn-primary { background:#2563eb; color:#fff; }
+.btn-primary:hover { filter:brightness(1.05); }
+.btn-success { background:#16a34a; color:#fff; }
+.btn-success:hover { filter:brightness(1.05); }
+.btn-danger { background:#dc2626; color:#fff; margin-left:auto; }
+.btn-danger:hover { filter:brightness(1.05); }
+.btn-primary:active, .btn-success:active, .btn-danger:active { transform: scale(0.98); }
+
+/* Formulario */
+.form-alumno {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: 1fr 200px auto;
+  gap: 10px;
+}
+.form-alumno input {
+  background: rgba(255,255,255,.08);
+  border: 1px solid rgba(255,255,255,.14);
+  color: #fff;
+  padding: 10px 12px;
+  border-radius: 10px;
+  outline: none;
+}
+.form-alumno input::placeholder { color:#cfe7ee; opacity:.7; }
+
+@media (max-width: 720px) {
+  .form-alumno { grid-template-columns: 1fr; }
+}
