@@ -38,12 +38,41 @@ async function fetchJSON(url, options = {}) {
 }
 
 async function authHeadersForMongo() {
-  const token = await AsyncStorage.getItem("mongo_token"); // token emitido por la API de Mongo
+  const token = await AsyncStorage.getItem("mongo_token");
   return {
     Accept: "application/json",
     "Content-Type": "application/json",
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
+}
+
+/** ==== Workaround: asegurar mongo_token sin sacar al usuario ==== */
+async function ensureMongoTokenOnce() {
+  let mongoToken = await AsyncStorage.getItem("mongo_token");
+  if (mongoToken) return true;
+
+  // 1) Intenta “exchange” si existiera (ignorado si 404)
+  const mysqlToken = await AsyncStorage.getItem("mysql_token");
+  if (mysqlToken) {
+    try {
+      const r = await fetchJSON(`${API_MONGO}/api/auth/exchange`, {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${mysqlToken}`,
+        },
+      });
+      if (r.ok && r.data?.token) {
+        await AsyncStorage.setItem("mongo_token", r.data.token);
+        return true;
+      }
+    } catch (_) {}
+    // 2) Si no hay exchange en backend, copia temporalmente el mysql_token
+    await AsyncStorage.setItem("mongo_token", mysqlToken);
+    return true;
+  }
+  return false;
 }
 
 /** ====== COMPONENTE ====== */
@@ -57,75 +86,68 @@ export default function MonitorProductScreen({ navigation }) {
   const [fechaSeleccionada, setFechaSeleccionada] = useState(new Date());
   const [mostrarPicker, setMostrarPicker] = useState(false);
 
+  const warnedRef = useRef(false); // evitar múltiples alerts
+
   /** Obtiene y cachea el producto_id del usuario */
   const getProductoId = async () => {
     const cached = await AsyncStorage.getItem("producto_id");
     if (cached) return cached;
 
-    // 1) Intentar en API Mongo (si ahí expones /api/productos/my)
+    // 1) Mongo
     try {
-      const { ok, data, status } = await fetchJSON(
-        `${API_MONGO}/api/productos/my`,
-        { headers: await authHeadersForMongo() }
-      );
+      const { ok, data } = await fetchJSON(`${API_MONGO}/api/productos/my`, {
+        headers: await authHeadersForMongo(),
+      });
       if (ok && data?.producto_id) {
         await AsyncStorage.setItem("producto_id", data.producto_id);
         return data.producto_id;
-      } else if (status === 401) {
-        console.log("Mongo 401 en /api/productos/my → token inválido o ausente");
       }
-    } catch (e) {
-      console.log("Error consultando /api/productos/my (Mongo):", e?.message);
-    }
+    } catch (e) {}
 
-    // 2) Fallback en API MySQL
+    // 2) MySQL (fallback)
     try {
-      const mysqlToken = await AsyncStorage.getItem("mysql_token"); // guarda este tras login MySQL
-      const { ok, data, status } = await fetchJSON(
-        `${API_MYSQL}/api/user-product/my`,
-        {
-          headers: {
-            Accept: "application/json",
-            "Content-Type": "application/json",
-            ...(mysqlToken ? { Authorization: `Bearer ${mysqlToken}` } : {}),
-          },
-        }
-      );
+      const mysqlToken = await AsyncStorage.getItem("mysql_token");
+      const { ok, data } = await fetchJSON(`${API_MYSQL}/api/user-product/my`, {
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          ...(mysqlToken ? { Authorization: `Bearer ${mysqlToken}` } : {}),
+        },
+      });
       if (ok && data?.producto_id) {
         await AsyncStorage.setItem("producto_id", data.producto_id);
         return data.producto_id;
-      } else if (status === 401) {
-        console.log("MySQL 401 en /api/user-product/my → token inválido o ausente");
       }
-    } catch (e) {
-      console.log("Error consultando /api/user-product/my (MySQL):", e?.message);
-    }
+    } catch (e) {}
 
     return null;
   };
 
   /** Carga pesos y ubicaciones por fecha desde la API de Mongo */
   const cargarDatos = async (fecha) => {
+    // Asegura (o crea) mongo_token sin expulsar al usuario
+    const hasToken = await ensureMongoTokenOnce();
+    if (!hasToken && !warnedRef.current) {
+      warnedRef.current = true;
+      Alert.alert(
+        "Sesión",
+        "No hay token válido. Inicia sesión para ver datos protegidos."
+      );
+      // NO redirigimos: permitimos que la UI quede visible
+    }
+
+    const producto_id = await getProductoId();
+    const fechaStr = toISODate(fecha);
+
+    if (!producto_id) {
+      setPesoActual("No registrado");
+      setUbicacion("Sin producto asignado");
+      setDatosGrafica({ labels: [], data: [] });
+      setRecorrido([]);
+      return;
+    }
+
     try {
-      // Verificar sesión de Mongo (puedes redirigir si no hay token)
-      const mongoToken = await AsyncStorage.getItem("mongo_token");
-      if (!mongoToken) {
-        Alert.alert("Sesión", "Inicia sesión de nuevo (Mongo).");
-        navigation.replace("Login");
-        return;
-      }
-
-      const producto_id = await getProductoId();
-      const fechaStr = toISODate(fecha);
-
-      if (!producto_id) {
-        setPesoActual("No registrado");
-        setUbicacion("Sin producto asignado");
-        setDatosGrafica({ labels: [], data: [] });
-        setRecorrido([]);
-        return;
-      }
-
       // --- Pesos por fecha ---
       {
         const { ok, data, status } = await fetchJSON(
@@ -134,11 +156,10 @@ export default function MonitorProductScreen({ navigation }) {
           )}?fecha=${encodeURIComponent(fechaStr)}`,
           { headers: await authHeadersForMongo() }
         );
-
-        if (status === 401) {
-          console.log("401 en /api/pesos → revisa mongo_token o middleware");
+        if (status === 401 && !warnedRef.current) {
+          warnedRef.current = true;
+          Alert.alert("Permisos", "Tu sesión de Mongo no es válida (401).");
         }
-
         if (ok && Array.isArray(data) && data.length > 0) {
           const etiquetas = data.map((p) => {
             const f = new Date(p.fecha);
@@ -148,7 +169,7 @@ export default function MonitorProductScreen({ navigation }) {
           });
           const pesos = data.map((p) => Number(p.peso));
           setDatosGrafica({ labels: etiquetas, data: pesos });
-          setPesoActual(pesos[pesos.length - 1]); // último del día
+          setPesoActual(pesos[pesos.length - 1]);
         } else {
           setDatosGrafica({ labels: [], data: [] });
           setPesoActual(null);
@@ -163,11 +184,10 @@ export default function MonitorProductScreen({ navigation }) {
           )}/por-fecha?fecha=${encodeURIComponent(fechaStr)}`,
           { headers: await authHeadersForMongo() }
         );
-
-        if (status === 401) {
-          console.log("401 en /api/ubicaciones → revisa mongo_token o middleware");
+        if (status === 401 && !warnedRef.current) {
+          warnedRef.current = true;
+          Alert.alert("Permisos", "Tu sesión de Mongo no es válida (401).");
         }
-
         if (ok && Array.isArray(data) && data.length > 0) {
           const ultimo = data[data.length - 1];
           if (typeof ultimo.lat === "number" && typeof ultimo.lng === "number") {
@@ -175,12 +195,9 @@ export default function MonitorProductScreen({ navigation }) {
           } else {
             setUbicacion("Sin datos de GPS");
           }
-
           setRecorrido(
             data
-              .filter(
-                (p) => typeof p.lat === "number" && typeof p.lng === "number"
-              )
+              .filter((p) => typeof p.lat === "number" && typeof p.lng === "number")
               .map((p) => ({ lat: p.lat, lng: p.lng }))
           );
         } else {
@@ -200,7 +217,6 @@ export default function MonitorProductScreen({ navigation }) {
   useEffect(() => {
     Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }).start();
     cargarDatos(fechaSeleccionada);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fechaSeleccionada]);
 
   return (
@@ -210,7 +226,6 @@ export default function MonitorProductScreen({ navigation }) {
           <MaterialCommunityIcons name="chart-line" size={60} color="#00cfff" style={{ marginBottom: 10 }} />
           <Text style={styles.title}>Monitoreo del producto</Text>
 
-          {/* Selector de fecha */}
           <TouchableOpacity onPress={() => setMostrarPicker(true)} style={styles.fechaBtn}>
             <Ionicons name="calendar-outline" size={18} color="#fff" />
             <Text style={styles.fechaText}>Filtrar por: {toISODate(fechaSeleccionada)}</Text>
