@@ -39,12 +39,16 @@ async function fetchJSON(url, options = {}) {
 
 async function authHeadersForMongo() {
   const token = await AsyncStorage.getItem("mongo_token");
-  return {
+  const headers = {
     Accept: "application/json",
     "Content-Type": "application/json",
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
+  // DEBUG: esto se verá en la consola de Expo/Metro
+  console.log("HDR MONGO →", headers.Authorization ? headers.Authorization : "SIN AUTH");
+  return headers;
 }
+
 
 /** ==== Opción A: asegurar mongo_token sin exchange ==== */
 async function ensureMongoTokenOnce() {
