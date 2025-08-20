@@ -59,6 +59,8 @@ app.use(morgan('dev'));
 app.use('/api', healthRoutes);
 
 // SIN JWT / SIN PASSPORT (se retiraron authRoutes y googleRoutes)
+app.use('/api/auth', authRoutes);
+app.use('/api/auth', googleRoutes);
 app.use('/api/productos', productoRoutes);
 app.use('/api/categorias', categoriaRoutes);
 app.use('/api/catalogo', catalogoRoutes);
