@@ -1,9 +1,9 @@
 // src/pages/MaestroSalon.jsx
 import React, { useEffect, useState, useCallback } from "react";
-import "./MaestroSalon.css"; // asegúrate que este CSS exista
+import "./Login.css"; // asegúrate que este CSS exista
+import { API_URL } from "../env";
 // Si usas un env: REACT_APP_API_URL=https://edumochila-api-mysql.onrender.com
-const API_BASE =
-  process.env.REACT_APP_API_URL || "https://edumochila-api-mysql.onrender.com";
+const API_BASE = API_URL || "https://edumochila-api-mysql.onrender.com";
 
 export default function MaestroSalon() {
   const [alumnos, setAlumnos] = useState([]);
