@@ -1,7 +1,7 @@
 // src/pages/MaestroSalon.jsx
+import "./Login.css";
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import "./Login.css";
 
 export default function MaestroSalon() {
   const navigate = useNavigate();
