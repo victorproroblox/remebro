@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import "./Productos.css";
-import { API_URL } from "../env"; // o la ruta correcta
-
+import { API_URL } from "../env";
 
 export default function EditarProducto() {
   const { id } = useParams();
@@ -23,9 +22,7 @@ export default function EditarProducto() {
     status_pr: 1,
   });
 
-  const getToken = () => localStorage.getItem("token") || "";
-
-  // ---------- Cargar producto
+  /* ---------- Cargar producto ---------- */
   const obtenerProducto = async () => {
     try {
       const res = await fetch(`${API_URL}/api/productos/${id}`, {
@@ -34,7 +31,7 @@ export default function EditarProducto() {
       if (!res.ok) throw new Error("Producto no encontrado");
 
       const raw = await res.json();
-      const p = raw?.producto ?? raw; // acepta ambas formas
+      const p = raw?.producto ?? raw;
 
       setFormData({
         nom_pr: p.nom_pr ?? "",
@@ -52,7 +49,7 @@ export default function EditarProducto() {
     }
   };
 
-  // ---------- Cargar categorías
+  /* ---------- Cargar categorías ---------- */
   const obtenerCategorias = async () => {
     try {
       const res = await fetch(`${API_URL}/api/categorias`, {
@@ -80,10 +77,9 @@ export default function EditarProducto() {
     return () => {
       alive = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  // ---------- Handlers
+  /* ---------- Handlers ---------- */
   const handleChange = (e) => {
     const { name, value } = e.target;
 
@@ -102,13 +98,6 @@ export default function EditarProducto() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    const token = getToken();
-    if (!token) {
-      alert("Tu sesión ha expirado. Inicia sesión nuevamente.");
-      navigate("/login");
-      return;
-    }
 
     // Validaciones básicas
     if (
@@ -146,7 +135,6 @@ export default function EditarProducto() {
         headers: {
           Accept: "application/json",
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
       });
@@ -156,9 +144,6 @@ export default function EditarProducto() {
       if (res.ok) {
         alert(data.mensaje || "Producto actualizado correctamente");
         navigate("/productos");
-      } else if (res.status === 401 || res.status === 403) {
-        alert("No autorizado. Inicia sesión como administrador.");
-        navigate("/login");
       } else {
         alert(data.mensaje || "Error al actualizar producto");
       }

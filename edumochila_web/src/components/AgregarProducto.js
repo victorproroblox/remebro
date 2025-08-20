@@ -1,11 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import "./Productos.css";
-import { API_URL } from "../env"; // o la ruta correcta
-
-
-// Puedes definir VITE_API_MYSQL_URL en tu .env de Vite/React.
-// Ej: VITE_API_MYSQL_URL=http://localhost:4000
+import { API_URL } from "../env"; // Asegúrate de que apunte a tu API MySQL
 
 export default function AgregarProducto() {
   const navigate = useNavigate();
@@ -22,19 +18,17 @@ export default function AgregarProducto() {
     id_cat: "",
   });
 
-  // -------- Helpers
-  const getToken = () => localStorage.getItem("token") || "";
-
+  /* -------- Helpers -------- */
   const handleChange = (e) => {
     const { name, value } = e.target;
 
-    // Normaliza números donde aplica
     if (name === "precio_pr") {
+      // Solo dígitos, punto o coma
       setFormData((p) => ({ ...p, [name]: value.replace(/[^\d.,]/g, "") }));
       return;
     }
     if (name === "stock" || name === "id_cat") {
-      // solo dígitos
+      // Solo dígitos
       setFormData((p) => ({ ...p, [name]: value.replace(/[^\d]/g, "") }));
       return;
     }
@@ -42,7 +36,7 @@ export default function AgregarProducto() {
     setFormData((p) => ({ ...p, [name]: value }));
   };
 
-  // -------- Cargar categorías
+  /* -------- Cargar categorías -------- */
   const obtenerCategorias = async () => {
     try {
       const res = await fetch(`${API_URL}/api/categorias`, {
@@ -65,7 +59,7 @@ export default function AgregarProducto() {
     obtenerCategorias();
   }, []);
 
-  // -------- Enviar formulario
+  /* -------- Enviar formulario -------- */
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -85,7 +79,7 @@ export default function AgregarProducto() {
       nom_pr: formData.nom_pr.trim(),
       precio_pr: Number(
         String(formData.precio_pr).replace(/\./g, "").replace(",", ".")
-      ), // admite "123,45"
+      ),
       stock: parseInt(formData.stock, 10),
       desc_pr: formData.desc_pr?.trim() || null,
       img_pr: formData.img_pr.trim(),
@@ -100,19 +94,11 @@ export default function AgregarProducto() {
 
     setLoading(true);
     try {
-      const token = getToken();
-      if (!token) {
-        alert("Tu sesión ha expirado. Inicia sesión nuevamente.");
-        navigate("/login");
-        return;
-      }
-
       const res = await fetch(`${API_URL}/api/productos`, {
         method: "POST",
         headers: {
           Accept: "application/json",
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
       });
@@ -122,9 +108,6 @@ export default function AgregarProducto() {
       if (res.ok) {
         alert(data.mensaje || "Producto agregado correctamente");
         navigate("/productos");
-      } else if (res.status === 401 || res.status === 403) {
-        alert("No autorizado. Inicia sesión como administrador.");
-        navigate("/login");
       } else {
         alert(data.mensaje || "Error al agregar producto");
       }

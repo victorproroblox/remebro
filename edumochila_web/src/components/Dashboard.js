@@ -7,6 +7,7 @@ export default function AdminDashboard() {
   const navigate = useNavigate();
 
   const handleLogout = () => {
+    // Solo limpiamos la info de usuario guardada por la app (sin JWT)
     localStorage.removeItem('usuario');
     navigate('/');
   };
@@ -20,7 +21,9 @@ export default function AdminDashboard() {
       <div className="dashboard-header">
         <MdAdminPanelSettings className="dashboard-icon" />
         <h1 className="dashboard-title">Panel de Administrador</h1>
-        <button className="logout-button" onClick={handleLogout}>Cerrar sesión</button>
+        <button className="logout-button" onClick={handleLogout}>
+          Cerrar sesión
+        </button>
       </div>
 
       <div className="dashboard-content">

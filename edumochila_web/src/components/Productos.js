@@ -1,11 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "./Productos.css";
-import { API_URL } from "../env"; // o la ruta correcta
-
-// Usa .env (Vite) para configurar la URL base:
-// VITE_API_MYSQL_URL=http://localhost:4000
-
+import { API_URL } from "../env";
 
 export default function Productos() {
   const navigate = useNavigate();
@@ -13,32 +9,17 @@ export default function Productos() {
   const [loading, setLoading] = useState(true);
   const [mensaje, setMensaje] = useState("");
 
-  const getToken = () => localStorage.getItem("token") || "";
-
   const obtenerProductos = async () => {
     setLoading(true);
     setMensaje("");
     try {
-      const token = getToken();
-      if (!token) {
-        alert("Tu sesión ha expirado. Inicia sesión nuevamente.");
-        navigate("/login");
-        return;
-      }
-
       const response = await fetch(`${API_URL}/api/productos/admin`, {
         headers: {
           Accept: "application/json",
-          Authorization: `Bearer ${token}`,
         },
       });
 
       if (!response.ok) {
-        if (response.status === 401 || response.status === 403) {
-          alert("No autorizado. Inicia sesión como administrador.");
-          navigate("/login");
-          return;
-        }
         throw new Error("No se pudo obtener la lista de productos.");
       }
 
@@ -55,31 +36,16 @@ export default function Productos() {
 
   useEffect(() => {
     obtenerProductos();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleDesactivar = async (id) => {
     try {
-      const token = getToken();
-      if (!token) {
-        alert("Tu sesión ha expirado. Inicia sesión nuevamente.");
-        navigate("/login");
-        return;
-      }
       const res = await fetch(`${API_URL}/api/productos/${id}/baja`, {
         method: "PUT",
-        headers: {
-          Accept: "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Accept: "application/json" },
       });
 
       if (!res.ok) {
-        if (res.status === 401 || res.status === 403) {
-          alert("No autorizado.");
-          navigate("/login");
-          return;
-        }
         throw new Error("No se pudo desactivar el producto.");
       }
       await obtenerProductos();
@@ -91,26 +57,12 @@ export default function Productos() {
 
   const handleActivar = async (id) => {
     try {
-      const token = getToken();
-      if (!token) {
-        alert("Tu sesión ha expirado. Inicia sesión nuevamente.");
-        navigate("/login");
-        return;
-      }
       const res = await fetch(`${API_URL}/api/productos/${id}/activar`, {
         method: "PUT",
-        headers: {
-          Accept: "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Accept: "application/json" },
       });
 
       if (!res.ok) {
-        if (res.status === 401 || res.status === 403) {
-          alert("No autorizado.");
-          navigate("/login");
-          return;
-        }
         throw new Error("No se pudo activar el producto.");
       }
       await obtenerProductos();
