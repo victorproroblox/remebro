@@ -1,10 +1,113 @@
 // src/pages/MaestroSalon.jsx
 import React, { useEffect, useState, useCallback } from "react";
-import "./Login.css"; // asegúrate que este CSS exista
+import "./Login.css"; // o tu CSS de salón
 import { API_URL } from "../env";
-// Si usas un env: REACT_APP_API_URL=https://edumochila-api-mysql.onrender.com
-const API_BASE = API_URL || "https://edumochila-api-mysql.onrender.com";
+import { API_MONGO_URL } from "../env";
 
+const API_SQL = API_URL || "https://edumochila-api-mysql.onrender.com";
+const API_MONGO = API_MONGO_URL || "https://edumochila-api-mongo.onrender.com";
+
+/* =======================
+   Helpers de fechas
+======================= */
+const fmtDate = (d) => {
+  const pad = (n) => String(n).padStart(2, "0");
+  const y = d.getFullYear();
+  const m = pad(d.getMonth() + 1);
+  const dd = pad(d.getDate());
+  return `${y}-${m}-${dd}`;
+};
+const todayStr = () => fmtDate(new Date());
+
+/** Devuelve array de strings YYYY-MM-DD inclusive (de->a) */
+const eachDate = (fromStr, toStr) => {
+  const list = [];
+  const from = new Date(fromStr + "T00:00:00");
+  const to = new Date(toStr + "T00:00:00");
+  for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
+    list.push(fmtDate(d));
+  }
+  return list;
+};
+
+/* =======================
+   Mini LineChart SVG
+   props: { data:[{t, kg}], width, height }
+======================= */
+function LineChart({ data, width = 520, height = 160 }) {
+  if (!data || data.length === 0) {
+    return (
+      <div className="msalon-empty" style={{ marginTop: 8 }}>
+        Sin datos para graficar.
+      </div>
+    );
+  }
+  const sorted = [...data].sort(
+    (a, b) => new Date(a.t).getTime() - new Date(b.t).getTime()
+  );
+  const times = sorted.map((d) => new Date(d.t).getTime());
+  const values = sorted.map((d) => Number(d.kg));
+  const minX = Math.min(...times);
+  const maxX = Math.max(...times);
+  const minY = Math.min(...values);
+  const maxY = Math.max(...values);
+  const pad = 24;
+
+  const xScale = (x) =>
+    pad + ((x - minX) / (maxX - minX || 1)) * (width - pad * 2);
+  const yScale = (y) =>
+    height - pad - ((y - minY) / (maxY - minY || 1)) * (height - pad * 2);
+
+  const path = sorted
+    .map(
+      (d, i) =>
+        `${i === 0 ? "M" : "L"} ${xScale(new Date(d.t).getTime())} ${yScale(
+          Number(d.kg)
+        )}`
+    )
+    .join(" ");
+
+  return (
+    <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`}>
+      <line
+        x1={pad}
+        y1={height - pad}
+        x2={width - pad}
+        y2={height - pad}
+        stroke="#6b7280"
+        strokeWidth="1"
+      />
+      <line
+        x1={pad}
+        y1={pad}
+        x2={pad}
+        y2={height - pad}
+        stroke="#6b7280"
+        strokeWidth="1"
+      />
+      <path d={path} fill="none" stroke="#22d3ee" strokeWidth="2.5" />
+      {sorted.map((d, i) => (
+        <circle
+          key={i}
+          cx={xScale(new Date(d.t).getTime())}
+          cy={yScale(Number(d.kg))}
+          r="3.5"
+          fill="#22d3ee"
+        />
+      ))}
+      <text x={8} y={14} fill="#9ca3af" fontSize="11">
+        min: {minY}
+      </text>
+      <text x={8} y={28} fill="#9ca3af" fontSize="11">
+        max: {maxY}
+      </text>
+    </svg>
+  );
+}
+
+/* =======================
+   Componente principal
+======================= */
 export default function MaestroSalon() {
   const [alumnos, setAlumnos] = useState([]);
   const [showForm, setShowForm] = useState(false);
@@ -13,13 +116,18 @@ export default function MaestroSalon() {
   const [loadingList, setLoadingList] = useState(false);
   const [loadingSave, setLoadingSave] = useState(false);
 
-  // Usuario guardado por el login (sin JWT)
+  // Pesos por alumno:
+  // { [producto_id]: { actual, hoy[], rango[], filtros:{from,to}, loading, error } }
+  const [pesos, setPesos] = useState({});
+
+  // Usuario guardado por login
   const usuario = JSON.parse(localStorage.getItem("usuario") || "null");
   const id_us = usuario?.id_us;
 
   const handleChange = (e) =>
     setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
 
+  /* ----------- ALUMNOS (MySQL) ----------- */
   const fetchAlumnos = useCallback(async () => {
     if (!id_us) {
       setMsg("No hay sesión activa.");
@@ -29,16 +137,36 @@ export default function MaestroSalon() {
     setLoadingList(true);
     setMsg("");
     try {
-      const res = await fetch(`${API_BASE}/api/alumnos?id_us=${id_us}`);
+      const res = await fetch(`${API_SQL}/api/alumnos?id_us=${id_us}`);
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setMsg(data?.message || data?.mensaje || "No se pudo cargar la lista");
         setAlumnos([]);
         return;
       }
-      setAlumnos(Array.isArray(data.data) ? data.data : []);
+      const list = Array.isArray(data.data) ? data.data : [];
+      setAlumnos(list);
+
+      // Inicializa filtros
+      setPesos((prev) => {
+        const next = { ...prev };
+        list.forEach((a) => {
+          if (!next[a.producto_id]) {
+            next[a.producto_id] = {
+              filtros: { from: todayStr(), to: todayStr() },
+              actual: null,
+              hoy: [],
+              rango: [],
+              loading: false,
+              error: "",
+            };
+          }
+        });
+        return next;
+      });
     } catch (e) {
       setMsg("Error de red al cargar alumnos");
+      setAlumnos([]);
     } finally {
       setLoadingList(false);
     }
@@ -67,7 +195,7 @@ export default function MaestroSalon() {
     setLoadingSave(true);
     setMsg("");
     try {
-      const res = await fetch(`${API_BASE}/api/alumnos`, {
+      const res = await fetch(`${API_SQL}/api/alumnos`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -100,7 +228,7 @@ export default function MaestroSalon() {
     if (!window.confirm("¿Eliminar este alumno?")) return;
     try {
       const res = await fetch(
-        `${API_BASE}/api/alumnos/${encodeURIComponent(
+        `${API_SQL}/api/alumnos/${encodeURIComponent(
           producto_id
         )}?id_us=${id_us}`,
         { method: "DELETE" }
@@ -114,9 +242,159 @@ export default function MaestroSalon() {
       setAlumnos((prev) =>
         prev.filter((a) => a.producto_id !== producto_id)
       );
+      setPesos((p) => {
+        const n = { ...p };
+        delete n[producto_id];
+        return n;
+      });
     } catch {
       setMsg("Error de red al eliminar");
     }
+  };
+
+  /* ----------- MONGO: pesos (adaptado a tus rutas) ----------- */
+
+  // GET /api/peso/:producto_id/latest
+  const fetchPesoActual = async (producto_id) => {
+    setPesos((p) => ({
+      ...p,
+      [producto_id]: { ...p[producto_id], loading: true, error: "" },
+    }));
+    try {
+      const res = await fetch(
+        `${API_MONGO}/api/peso/${encodeURIComponent(producto_id)}/latest`
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok)
+        throw new Error(
+          data?.message || data?.mensaje || "Error al obtener peso actual"
+        );
+      // se espera { kg, t? }
+      setPesos((p) => ({
+        ...p,
+        [producto_id]: {
+          ...p[producto_id],
+          actual: data?.kg ?? null,
+          loading: false,
+        },
+      }));
+    } catch (e) {
+      setPesos((p) => ({
+        ...p,
+        [producto_id]: {
+          ...p[producto_id],
+          loading: false,
+          error: String(e.message || e),
+        },
+      }));
+    }
+  };
+
+  // GET /api/peso/:producto_id/hoy -> [{t, kg}, ...]
+  const fetchPesoDeHoy = async (producto_id) => {
+    setPesos((p) => ({
+      ...p,
+      [producto_id]: { ...p[producto_id], loading: true, error: "" },
+    }));
+    try {
+      const res = await fetch(
+        `${API_MONGO}/api/peso/${encodeURIComponent(producto_id)}/hoy`
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok)
+        throw new Error(
+          data?.message || data?.mensaje || "Error al obtener pesos del día"
+        );
+      setPesos((p) => ({
+        ...p,
+        [producto_id]: {
+          ...p[producto_id],
+          hoy: Array.isArray(data) ? data : [],
+          rango: [], // limpio rango cuando pulsan "Hoy"
+          loading: false,
+        },
+      }));
+    } catch (e) {
+      setPesos((p) => ({
+        ...p,
+        [producto_id]: {
+          ...p[producto_id],
+          loading: false,
+          error: String(e.message || e),
+        },
+      }));
+    }
+  };
+
+  // GET /api/peso/:producto_id?fecha=YYYY-MM-DD  (por día) -> acumulamos para el rango
+  const fetchPesoPorRango = async (producto_id) => {
+    const f = pesos[producto_id]?.filtros;
+    const from = f?.from || todayStr();
+    const to = f?.to || todayStr();
+
+    const days = eachDate(from, to);
+    if (days.length === 0) return;
+
+    setPesos((p) => ({
+      ...p,
+      [producto_id]: { ...p[producto_id], loading: true, error: "" },
+    }));
+
+    try {
+      const requests = days.map((fecha) =>
+        fetch(
+          `${API_MONGO}/api/peso/${encodeURIComponent(
+            producto_id
+          )}?fecha=${encodeURIComponent(fecha)}`
+        )
+          .then((r) => r.json().catch(() => []))
+          .then((arr) => (Array.isArray(arr) ? arr : []))
+          .catch(() => [])
+      );
+      const chunks = await Promise.all(requests);
+      const merged = chunks.flat(); // [{t, kg}, ...]
+
+      setPesos((p) => ({
+        ...p,
+        [producto_id]: {
+          ...p[producto_id],
+          rango: merged,
+          loading: false,
+        },
+      }));
+    } catch (e) {
+      setPesos((p) => ({
+        ...p,
+        [producto_id]: {
+          ...p[producto_id],
+          loading: false,
+          error: String(e.message || e),
+        },
+      }));
+    }
+  };
+
+  // Auto-carga (actual + hoy) cuando llegan alumnos
+  useEffect(() => {
+    (async () => {
+      for (const a of alumnos) {
+        await Promise.allSettled([
+          fetchPesoActual(a.producto_id),
+          fetchPesoDeHoy(a.producto_id),
+        ]);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [alumnos.length]);
+
+  const setFiltro = (producto_id, field, value) => {
+    setPesos((p) => ({
+      ...p,
+      [producto_id]: {
+        ...p[producto_id],
+        filtros: { ...p[producto_id].filtros, [field]: value },
+      },
+    }));
   };
 
   return (
@@ -132,10 +410,7 @@ export default function MaestroSalon() {
           </p>
 
           <div className="msalon-actions">
-            <button
-              className="btn-primary"
-              onClick={() => setShowForm((s) => !s)}
-            >
+            <button className="btn-primary" onClick={() => setShowForm((s) => !s)}>
               {showForm ? "Cerrar" : "Agregar alumno"}
             </button>
           </div>
@@ -182,24 +457,124 @@ export default function MaestroSalon() {
           <div className="msalon-empty">Aún no hay alumnos.</div>
         ) : (
           <ul className="grid-alumnos">
-            {alumnos.map((a) => (
-              <li key={a.producto_id} className="al-card">
-                <div className="al-avatar">
-                  {(a.nom_alumno || "?").slice(0, 2).toUpperCase()}
-                </div>
-                <div className="al-info">
-                  <h3>{a.nom_alumno || "(Sin nombre)"}</h3>
-                  <p>Producto ID: {a.producto_id}</p>
-                </div>
-                <button
-                  className="btn-danger"
-                  onClick={() => handleDelete(a.producto_id)}
-                  title="Eliminar"
+            {alumnos.map((a) => {
+              const p = pesos[a.producto_id] || {
+                filtros: { from: todayStr(), to: todayStr() },
+                actual: null,
+                hoy: [],
+                rango: [],
+                loading: false,
+                error: "",
+              };
+              const iniciales = (a.nom_alumno || "?")
+                .split(" ")
+                .filter(Boolean)
+                .slice(0, 2)
+                .map((s) => s[0]?.toUpperCase())
+                .join("");
+
+              return (
+                <li
+                  key={a.producto_id}
+                  className="al-card"
+                  style={{ gridTemplateColumns: "56px 1fr auto" }}
                 >
-                  Eliminar
-                </button>
-              </li>
-            ))}
+                  <div className="al-avatar">{iniciales || "?"}</div>
+
+                  <div className="al-info">
+                    <h3>{a.nom_alumno || "(Sin nombre)"}</h3>
+                    <p>Producto ID: {a.producto_id}</p>
+
+                    {/* PESO ACTUAL */}
+                    <div style={{ marginTop: 8, fontSize: 14, color: "#cfe7ee" }}>
+                      <strong>Peso actual:</strong>{" "}
+                      {p.loading ? "Cargando..." : p.actual != null ? `${p.actual} kg` : "—"}
+                      <button
+                        className="btn-link"
+                        style={{ marginLeft: 10 }}
+                        onClick={() => fetchPesoActual(a.producto_id)}
+                        type="button"
+                        title="Actualizar peso actual"
+                      >
+                        Actualizar
+                      </button>
+                    </div>
+
+                    {/* FILTRO DE FECHAS */}
+                    <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      <input
+                        type="date"
+                        value={p.filtros.from}
+                        onChange={(e) => setFiltro(a.producto_id, "from", e.target.value)}
+                        className="date-input"
+                        max={p.filtros.to || todayStr()}
+                      />
+                      <input
+                        type="date"
+                        value={p.filtros.to}
+                        onChange={(e) => setFiltro(a.producto_id, "to", e.target.value)}
+                        className="date-input"
+                        min={p.filtros.from}
+                        max={todayStr()}
+                      />
+                      <button
+                        className="btn-primary"
+                        type="button"
+                        onClick={() => fetchPesoPorRango(a.producto_id)}
+                        disabled={p.loading}
+                        title="Consultar por rango"
+                      >
+                        Ver rango
+                      </button>
+                      <button
+                        className="btn-secondary"
+                        type="button"
+                        onClick={() => fetchPesoDeHoy(a.producto_id)}
+                        disabled={p.loading}
+                        title="Ver pesos de hoy"
+                      >
+                        Hoy
+                      </button>
+                    </div>
+
+                    {/* ERRORES MONGO */}
+                    {p.error && (
+                      <div className="msalon-empty" style={{ marginTop: 8 }}>
+                        {p.error}
+                      </div>
+                    )}
+
+                    {/* GRÁFICA */}
+                    <div style={{ marginTop: 12 }}>
+                      <div
+                        style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 6 }}
+                      >
+                        <span style={{ fontSize: 13, color: "#9cc9d8" }}>
+                          {p.rango && p.rango.length > 0
+                            ? `Rango ${p.filtros.from} a ${p.filtros.to}`
+                            : "Pesos del día"}
+                        </span>
+                        {p.loading && <span style={{ fontSize: 12 }}>Cargando...</span>}
+                      </div>
+                      <LineChart
+                        data={p.rango && p.rango.length > 0 ? p.rango : p.hoy}
+                        width={560}
+                        height={180}
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    className="btn-danger"
+                    onClick={() => handleDelete(a.producto_id)}
+                    title="Eliminar"
+                    style={{ alignSelf: "start" }}
+                  >
+                    Eliminar
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>
