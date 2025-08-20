@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { authGuard } from '../middlewares/authGuard.js';
 import { ultima, recorridoDelDia, recorridoPorFecha, store } from '../controllers/ubicacion.controller.js';
+import { ingestGuard } from "../middlewares/ingestGuard.js";
 
 const router = Router();
 
