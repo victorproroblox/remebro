@@ -32,51 +32,80 @@ export default function LoginScreen({ navigation }) {
 
     setLoading(true);
 
-    try {
-      const res = await fetch(`${API_URL}/api/auth/login`, {
-        method: "POST",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          nom_us: u,
-          pass_us: p,
-        }),
-      });
+    const url = `${API_URL}/api/auth/login`;
 
-      const data = await res.json().catch(() => ({}));
-      console.log("LOGIN → status:", res.status, "data:", data);
+    // Helper fetch con timeout
+    const timedFetch = (resource, options = {}, ms = 15000) => {
+      const controller = new AbortController();
+      const id = setTimeout(() => controller.abort(), ms);
+      return fetch(resource, { ...options, signal: controller.signal })
+        .finally(() => clearTimeout(id));
+    };
 
-      if (res.ok && data?.estatus === "exitoso" && data?.access_token) {
-        const token = String(data.access_token);
+    const intentos = 2;
+    let ultimoError = null;
 
-        // Guardamos bajo varias claves:
-        await AsyncStorage.multiSet([
-          ["token", token],          // compat histórico
-          ["mysql_token", token],    // emite MySQL
-          ["mongo_token", token],    // Opción A: mismo JWT para Mongo
-          ["user", JSON.stringify(data.usuario ?? {})],
-        ]);
+    for (let i = 1; i <= intentos; i++) {
+      try {
+        // Warmup opcional (para evitar cold start)
+        await timedFetch(`${API_URL}/health`).catch(() => {});
 
-        Alert.alert("Bienvenido", data.mensaje || "Inicio de sesión correcto");
-        navigation.replace("Home");
+        const res = await timedFetch(
+          url,
+          {
+            method: "POST",
+            headers: {
+              Accept: "application/json",
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ nom_us: u, pass_us: p }),
+          },
+          15000
+        );
+
+        if (!res.ok) {
+          const raw = await res.text(); // 502 suele regresar HTML
+          console.log(`LOGIN intento ${i} -> status:`, res.status, "raw:", raw.slice(0, 600));
+          if (i < intentos && (res.status === 502 || res.status === 504)) {
+            await new Promise((r) => setTimeout(r, 1200)); // backoff simple
+            continue;
+          }
+          Alert.alert("Error", `Error al iniciar sesión (código ${res.status})`);
+          return;
+        }
+
+        const data = await res.json().catch(() => ({}));
+        console.log("LOGIN OK:", data);
+
+        if (data?.estatus === "exitoso" && data?.access_token) {
+          const token = String(data.access_token);
+          await AsyncStorage.multiSet([
+            ["token", token],                // compat histórico
+            ["mysql_token", token],          // emitido por MySQL
+            ["mongo_token", token],          // reutilizado para Mongo
+            ["user", JSON.stringify(data.usuario ?? {})],
+          ]);
+          Alert.alert("Bienvenido", data.mensaje || "Inicio de sesión correcto");
+          navigation.replace("Home");
+          return;
+        }
+
+        Alert.alert("Error", data?.mensaje || "Respuesta inesperada del servidor");
         return;
+      } catch (err) {
+        console.log(`LOGIN intento ${i} excepción:`, err?.message);
+        ultimoError = err;
+        if (i < intentos) {
+          await new Promise((r) => setTimeout(r, 1200));
+          continue;
+        }
+        Alert.alert("Error", "No se pudo conectar al servidor");
+      } finally {
+        setLoading(false);
       }
-
-      // Errores manejados por backend
-      const msg =
-        data?.mensaje ||
-        (res.status === 401
-          ? "Usuario o contraseña incorrectos"
-          : `Error al iniciar sesión (código ${res.status})`);
-      Alert.alert("Error", msg);
-    } catch (error) {
-      console.error("Error de conexión:", error);
-      Alert.alert("Error", "No se pudo conectar al servidor");
-    } finally {
-      setLoading(false);
     }
+
+    if (ultimoError) console.log("Último error:", ultimoError);
   };
 
   return (

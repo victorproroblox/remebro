@@ -1,78 +1,157 @@
-import React from "react";
+// src/pages/MaestroSalon.jsx
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import "./Login.css";
-import { useNavigate } from "react-router-dom";
-import Navbar from "./Navbar";
-import {
-  MdGroups,
-  MdPersonAdd,
-} from "react-icons/md";
 
 export default function MaestroSalon() {
   const navigate = useNavigate();
+  const [alumnos, setAlumnos] = useState([]);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ nom_alumno: '', producto_id: '' });
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState('');
 
-  // Placeholder: si quieres mostrar algo, puedes guardar un arreglo demo en localStorage
-  // localStorage.setItem('alumnos_demo', JSON.stringify([{nombre:'Alex Ruiz', grado:'3°A'}]));
-  const alumnos = JSON.parse(localStorage.getItem("alumnos_demo") || "[]");
+  const token = localStorage.getItem('token'); // JWT del maestro
+
+  const fetchAlumnos = async () => {
+    try {
+      const res = await fetch(`${process.env.REACT_APP_API_URL || ''}/api/alumnos`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) setAlumnos(data.data || []);
+      else setMsg(data.message || 'No se pudo cargar la lista');
+    } catch (e) {
+      setMsg('Error al cargar alumnos');
+    }
+  };
+
+  useEffect(() => {
+    fetchAlumnos();
+    // eslint-disable-next-line
+  }, []);
+
+  const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setMsg('');
+    try {
+      const res = await fetch(`${process.env.REACT_APP_API_URL || ''}/api/alumnos`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(form)
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setMsg(data.message || 'No se pudo registrar');
+      } else {
+        setMsg('Alumno registrado');
+        setForm({ nom_alumno: '', producto_id: '' });
+        setShowForm(false);
+        fetchAlumnos();
+      }
+    } catch (e) {
+      setMsg('Error de red/servidor');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async (producto_id) => {
+    if (!window.confirm('¿Eliminar este alumno?')) return;
+    try {
+      const res = await fetch(`${process.env.REACT_APP_API_URL || ''}/api/alumnos/${producto_id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (!res.ok) setMsg(data.message || 'No se pudo eliminar');
+      else {
+        setMsg('Alumno eliminado');
+        setAlumnos((prev) => prev.filter((a) => a.producto_id !== producto_id));
+      }
+    } catch {
+      setMsg('Error al eliminar');
+    }
+  };
 
   return (
-    <>
-      <Navbar />
+    <main className="p-6 max-w-3xl mx-auto">
+      <header className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold">Este es tu salón de clases</h1>
+        <button
+          className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
+          onClick={() => setShowForm((s) => !s)}
+        >
+          {showForm ? 'Cerrar' : 'Agregar alumno'}
+        </button>
+      </header>
 
-      <main className="msalon">
-        {/* HERO */}
-        <section className="msalon-hero">
-          <div className="msalon-hero__overlay" />
-          <div className="msalon-hero__content">
-            <div className="msalon-hero__icon">
-              <MdGroups />
-            </div>
+      {msg && <p className="mb-4 text-sm">{msg}</p>}
 
-            <h1 className="msalon-hero__title">Este es tu salón de clases</h1>
-            <p className="msalon-hero__subtitle">
-              Aquí verás a tus alumnos y podrás gestionarlos.
-            </p>
-
-            <div className="msalon-actions">
-              <button
-                className="btn btn-primary"
-                onClick={() => navigate("/maestro/alumnos/nuevo")}
-              >
-                <MdPersonAdd style={{ marginRight: 8 }} />
-                Agregar alumno
-              </button>
-
-              <button className="btn btn-ghost" onClick={() => navigate("/maestro")}>
-                Volver al panel
-              </button>
-            </div>
+      {showForm && (
+        <form onSubmit={handleSubmit} className="mb-6 grid gap-3 bg-gray-50 p-4 rounded">
+          <div>
+            <label className="block text-sm mb-1">Nombre del alumno</label>
+            <input
+              name="nom_alumno"
+              value={form.nom_alumno}
+              onChange={handleChange}
+              maxLength={100}
+              className="w-full border rounded px-3 py-2"
+              placeholder="Ej. Juan Pérez"
+              required
+            />
           </div>
-        </section>
+          <div>
+            <label className="block text-sm mb-1">Producto ID</label>
+            <input
+              name="producto_id"
+              value={form.producto_id}
+              onChange={handleChange}
+              maxLength={10}
+              className="w-full border rounded px-3 py-2"
+              placeholder="Ej. 123456"
+              required
+            />
+          </div>
+          <button
+            disabled={loading}
+            className="mt-2 px-4 py-2 rounded bg-green-600 text-white hover:bg-green-700 disabled:opacity-60"
+          >
+            {loading ? 'Guardando...' : 'Guardar alumno'}
+          </button>
+        </form>
+      )}
 
-        {/* LISTADO DE ALUMNOS */}
-        <section className="msalon-list">
-          <h2>Alumnos</h2>
-
-          {alumnos.length === 0 ? (
-            <div className="msalon-empty">Aún no hay alumnos agregados.</div>
-          ) : (
-            <div className="grid grid-alumnos">
-              {alumnos.map((al, i) => (
-                <article className="al-card" key={al.id || i}>
-                  <div className="al-avatar">
-                    {(al.iniciales ||
-                      (al.nombre && al.nombre[0]) ||
-                      "A").toUpperCase()}
-                  </div>
-                  <div className="al-info">
-                    <h3>{al.nombre || "Alumno"}</h3>
-                    {al.grado && <p>{al.grado}</p>}
-                  </div>
-                </article>
-              ))}
-            </div>
-          )}
-        </section>
-      </main>
-    </>
+      <section>
+        <h2 className="text-lg font-semibold mb-3">Alumnos registrados</h2>
+        {alumnos.length === 0 ? (
+          <p className="text-sm text-gray-600">Aún no hay alumnos.</p>
+        ) : (
+          <ul className="divide-y rounded border">
+            {alumnos.map((a) => (
+              <li key={a.producto_id} className="flex items-center justify-between p-3">
+                <div>
+                  <p className="font-medium">{a.nom_alumno || '(Sin nombre)'}</p>
+                  <p className="text-sm text-gray-600">Producto ID: {a.producto_id}</p>
+                </div>
+                <button
+                  className="px-3 py-1 rounded bg-red-600 text-white hover:bg-red-700"
+                  onClick={() => handleDelete(a.producto_id)}
+                >
+                  Eliminar
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </main>
   );
 }
