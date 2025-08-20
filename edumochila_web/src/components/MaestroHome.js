@@ -53,7 +53,7 @@ export default function MaestroHome() {
 
             <div className="mh-hero__actions">
               <button className="btn btn-primary" onClick={() => go("/maestro/grupos")}>
-                <MdGroups style={{ marginRight: 8 }} /> Mis grupos
+                <MdGroups style={{ marginRight: 8 }} /> Mi salón
               </button>
               <button className="btn btn-outline" onClick={() => go("/maestro/avisos")}>
                 <MdNotificationsActive style={{ marginRight: 8 }} /> Crear aviso
