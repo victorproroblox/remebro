@@ -6,7 +6,7 @@ export const API_URL = stripSlash(
 );
 
 export const API_MONGO_URL = stripSlash(
-  process.env.REACT_APP_API_MONGO_URL || "https://edumochila-api-mongo.onrender.com/api"
+  process.env.REACT_APP_API_MONGO_URL || "https://edumochila-api-mongo.onrender.com"
 );
 
 export const PAYPAL_CLIENT_ID =
