@@ -2,7 +2,7 @@
 import "./Login.css";
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { REACT_APP_API_URL } from "../env";
+import { API_URL } from "../env";
 
 export default function MaestroSalon() {
   const navigate = useNavigate();
@@ -16,7 +16,7 @@ export default function MaestroSalon() {
 
   const fetchAlumnos = async () => {
     try {
-      const res = await fetch(`${REACT_APP_API_URL || ''}/api/alumnos`, {
+      const res = await fetch(`${API_URL || ''}/api/alumnos`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
@@ -39,7 +39,7 @@ export default function MaestroSalon() {
     setLoading(true);
     setMsg('');
     try {
-      const res = await fetch(`${REACT_APP_API_URL || ''}/api/alumnos`, {
+      const res = await fetch(`${API_URL || ''}/api/alumnos`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -66,7 +66,7 @@ export default function MaestroSalon() {
   const handleDelete = async (producto_id) => {
     if (!window.confirm('¿Eliminar este alumno?')) return;
     try {
-      const res = await fetch(`${REACT_APP_API_URL || ''}/api/alumnos/${producto_id}`, {
+      const res = await fetch(`${API_URL || ''}/api/alumnos/${producto_id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
