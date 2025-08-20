@@ -1000,3 +1000,10 @@
 @media (max-width: 720px) {
   .form-alumno { grid-template-columns: 1fr; }
 }
+.btn-link { background: transparent; border: none; color: #38bdf8; cursor: pointer; }
+.btn-secondary { background:#334155; color:#e5e7eb; border:none; padding:8px 12px; border-radius:10px; cursor:pointer; }
+.date-input {
+  background: rgba(255,255,255,.08);
+  border: 1px solid rgba(255,255,255,.14);
+  color: #fff; padding: 8px 10px; border-radius: 10px; outline: none;
+}
