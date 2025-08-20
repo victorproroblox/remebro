@@ -13,10 +13,7 @@ export async function crearAlumno(req, res) {
       return res.status(422).json({ message: 'producto_id es requerido y máx 10 caracteres.' });
     }
 
-    // producto_id único global (opcional)
-    const dup = await UsuarioProducto.findOne({ where: { producto_id } });
-    if (dup) return res.status(409).json({ message: 'Este producto_id ya está registrado.' });
-
+    // ✅ SIN chequeo de duplicados: se permite repetir 'producto_id'
     const row = await UsuarioProducto.create({ id_us, nom_alumno, producto_id });
     return res.status(201).json({ message: 'Alumno registrado', data: row });
   } catch (e) {
