@@ -19,10 +19,11 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 
 const screenWidth = Dimensions.get("window").width;
 
-// 🔧 Ajusta la IP de tu PC para dispositivos físicos
-export const API_URL = "https://edumochila-api-mongo.onrender.com";
+/** ====== BASES DE API ====== */
+export const API_MONGO = "https://edumochila-api-mongo.onrender.com";
+export const API_MYSQL = "https://TU-API-MYSQL.com"; // <-- cámbiala
 
-// Helpers
+/** ====== HELPERS ====== */
 const toISODate = (date) => {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -36,6 +37,16 @@ async function fetchJSON(url, options = {}) {
   return { ok: res.ok, status: res.status, data };
 }
 
+async function authHeadersForMongo() {
+  const token = await AsyncStorage.getItem("mongo_token"); // token emitido por la API de Mongo
+  return {
+    Accept: "application/json",
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+
+/** ====== COMPONENTE ====== */
 export default function MonitorProductScreen({ navigation }) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
@@ -46,63 +57,60 @@ export default function MonitorProductScreen({ navigation }) {
   const [fechaSeleccionada, setFechaSeleccionada] = useState(new Date());
   const [mostrarPicker, setMostrarPicker] = useState(false);
 
+  /** Obtiene y cachea el producto_id del usuario */
   const getProductoId = async () => {
-    // 1) intenta leer de AsyncStorage
-    let pid = await AsyncStorage.getItem("producto_id");
-    if (pid) return pid;
+    const cached = await AsyncStorage.getItem("producto_id");
+    if (cached) return cached;
 
-    // 2) intenta obtenerlo de la API Mongo: /api/productos/my
+    // 1) Intentar en API Mongo (si ahí expones /api/productos/my)
     try {
-      const token = await AsyncStorage.getItem("token");
-      if (!token) return null;
+      const { ok, data, status } = await fetchJSON(
+        `${API_MONGO}/api/productos/my`,
+        { headers: await authHeadersForMongo() }
+      );
+      if (ok && data?.producto_id) {
+        await AsyncStorage.setItem("producto_id", data.producto_id);
+        return data.producto_id;
+      } else if (status === 401) {
+        console.log("Mongo 401 en /api/productos/my → token inválido o ausente");
+      }
+    } catch (e) {
+      console.log("Error consultando /api/productos/my (Mongo):", e?.message);
+    }
 
-      const { ok, data } = await fetchJSON(
-        `${API_URL}/api/productos/my`,
+    // 2) Fallback en API MySQL
+    try {
+      const mysqlToken = await AsyncStorage.getItem("mysql_token"); // guarda este tras login MySQL
+      const { ok, data, status } = await fetchJSON(
+        `${API_MYSQL}/api/user-product/my`,
         {
           headers: {
             Accept: "application/json",
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
+            ...(mysqlToken ? { Authorization: `Bearer ${mysqlToken}` } : {}),
           },
         }
       );
-
       if (ok && data?.producto_id) {
         await AsyncStorage.setItem("producto_id", data.producto_id);
         return data.producto_id;
+      } else if (status === 401) {
+        console.log("MySQL 401 en /api/user-product/my → token inválido o ausente");
       }
-    } catch {}
-
-    // 3) opcional: intenta con la API MySQL: /api/user-product/my
-    try {
-      const token = await AsyncStorage.getItem("token");
-      if (!token) return null;
-
-      const { ok, data } = await fetchJSON(
-        `${API_URL.replace(":5000", ":4000")}/api/user-product/my`,
-        {
-          headers: {
-            Accept: "application/json",
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      if (ok && data?.producto_id) {
-        await AsyncStorage.setItem("producto_id", data.producto_id);
-        return data.producto_id;
-      }
-    } catch {}
+    } catch (e) {
+      console.log("Error consultando /api/user-product/my (MySQL):", e?.message);
+    }
 
     return null;
   };
 
+  /** Carga pesos y ubicaciones por fecha desde la API de Mongo */
   const cargarDatos = async (fecha) => {
     try {
-      const token = await AsyncStorage.getItem("token");
-      if (!token) {
-        Alert.alert("Sesión", "Inicia sesión de nuevo.");
+      // Verificar sesión de Mongo (puedes redirigir si no hay token)
+      const mongoToken = await AsyncStorage.getItem("mongo_token");
+      if (!mongoToken) {
+        Alert.alert("Sesión", "Inicia sesión de nuevo (Mongo).");
         navigation.replace("Login");
         return;
       }
@@ -118,20 +126,18 @@ export default function MonitorProductScreen({ navigation }) {
         return;
       }
 
-      // 📈 Pesos por fecha (GET /api/pesos/:producto_id?fecha=YYYY-MM-DD)
+      // --- Pesos por fecha ---
       {
-        const { ok, data } = await fetchJSON(
-          `${API_URL}/api/pesos/${encodeURIComponent(
+        const { ok, data, status } = await fetchJSON(
+          `${API_MONGO}/api/pesos/${encodeURIComponent(
             producto_id
           )}?fecha=${encodeURIComponent(fechaStr)}`,
-          {
-            headers: {
-              Accept: "application/json",
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-          }
+          { headers: await authHeadersForMongo() }
         );
+
+        if (status === 401) {
+          console.log("401 en /api/pesos → revisa mongo_token o middleware");
+        }
 
         if (ok && Array.isArray(data) && data.length > 0) {
           const etiquetas = data.map((p) => {
@@ -142,40 +148,34 @@ export default function MonitorProductScreen({ navigation }) {
           });
           const pesos = data.map((p) => Number(p.peso));
           setDatosGrafica({ labels: etiquetas, data: pesos });
-
-          // último valor del día (nota: 0 debe mostrarse)
-          setPesoActual(pesos[pesos.length - 1]);
+          setPesoActual(pesos[pesos.length - 1]); // último del día
         } else {
           setDatosGrafica({ labels: [], data: [] });
           setPesoActual(null);
         }
       }
 
-      // 📍 Ubicaciones por fecha (GET /api/ubicaciones/:producto_id/por-fecha?fecha=YYYY-MM-DD)
+      // --- Ubicaciones por fecha ---
       {
-        const { ok, data } = await fetchJSON(
-          `${API_URL}/api/ubicaciones/${encodeURIComponent(
+        const { ok, data, status } = await fetchJSON(
+          `${API_MONGO}/api/ubicaciones/${encodeURIComponent(
             producto_id
           )}/por-fecha?fecha=${encodeURIComponent(fechaStr)}`,
-          {
-            headers: {
-              Accept: "application/json",
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-          }
+          { headers: await authHeadersForMongo() }
         );
+
+        if (status === 401) {
+          console.log("401 en /api/ubicaciones → revisa mongo_token o middleware");
+        }
 
         if (ok && Array.isArray(data) && data.length > 0) {
           const ultimo = data[data.length - 1];
-          if (
-            typeof ultimo.lat === "number" &&
-            typeof ultimo.lng === "number"
-          ) {
+          if (typeof ultimo.lat === "number" && typeof ultimo.lng === "number") {
             setUbicacion(`${ultimo.lat.toFixed(6)}, ${ultimo.lng.toFixed(6)}`);
           } else {
             setUbicacion("Sin datos de GPS");
           }
+
           setRecorrido(
             data
               .filter(
@@ -198,40 +198,22 @@ export default function MonitorProductScreen({ navigation }) {
   };
 
   useEffect(() => {
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 600,
-      useNativeDriver: true,
-    }).start();
-
+    Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }).start();
     cargarDatos(fechaSeleccionada);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fechaSeleccionada]);
 
   return (
-    <LinearGradient
-      colors={["#0f2027", "#203a43", "#2c5364"]}
-      style={styles.container}
-    >
+    <LinearGradient colors={["#0f2027", "#203a43", "#2c5364"]} style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <Animated.View style={[styles.card, { opacity: fadeAnim }]}>
-          <MaterialCommunityIcons
-            name="chart-line"
-            size={60}
-            color="#00cfff"
-            style={{ marginBottom: 10 }}
-          />
+          <MaterialCommunityIcons name="chart-line" size={60} color="#00cfff" style={{ marginBottom: 10 }} />
           <Text style={styles.title}>Monitoreo del producto</Text>
 
-          {/* 📆 Selector de fecha */}
-          <TouchableOpacity
-            onPress={() => setMostrarPicker(true)}
-            style={styles.fechaBtn}
-          >
+          {/* Selector de fecha */}
+          <TouchableOpacity onPress={() => setMostrarPicker(true)} style={styles.fechaBtn}>
             <Ionicons name="calendar-outline" size={18} color="#fff" />
-            <Text style={styles.fechaText}>
-              Filtrar por: {toISODate(fechaSeleccionada)}
-            </Text>
+            <Text style={styles.fechaText}>Filtrar por: {toISODate(fechaSeleccionada)}</Text>
           </TouchableOpacity>
 
           {mostrarPicker && (
@@ -241,9 +223,7 @@ export default function MonitorProductScreen({ navigation }) {
               display={Platform.OS === "ios" ? "spinner" : "default"}
               onChange={(event, selectedDate) => {
                 setMostrarPicker(false);
-                if (selectedDate) {
-                  setFechaSeleccionada(selectedDate);
-                }
+                if (selectedDate) setFechaSeleccionada(selectedDate);
               }}
             />
           )}
@@ -251,9 +231,7 @@ export default function MonitorProductScreen({ navigation }) {
           <View style={styles.section}>
             <Text style={styles.label}>Peso actual:</Text>
             <Text style={styles.pesoActual}>
-              {pesoActual !== null && pesoActual !== undefined
-                ? `${pesoActual} kg`
-                : "Sin datos"}
+              {pesoActual !== null && pesoActual !== undefined ? `${pesoActual} kg` : "Sin datos"}
             </Text>
           </View>
 
@@ -262,10 +240,7 @@ export default function MonitorProductScreen({ navigation }) {
             {datosGrafica.data && datosGrafica.data.length > 0 ? (
               <ScrollView horizontal>
                 <LineChart
-                  data={{
-                    labels: datosGrafica.labels,
-                    datasets: [{ data: datosGrafica.data }],
-                  }}
+                  data={{ labels: datosGrafica.labels, datasets: [{ data: datosGrafica.data }] }}
                   width={screenWidth * 1.5}
                   height={160}
                   yAxisSuffix="kg"
@@ -277,28 +252,20 @@ export default function MonitorProductScreen({ navigation }) {
                     color: (opacity = 1) => `rgba(0, 207, 255, ${opacity})`,
                     labelColor: () => "#ccc",
                     style: { borderRadius: 16 },
-                    propsForDots: {
-                      r: "5",
-                      strokeWidth: "3",
-                      stroke: "#00cfff",
-                    },
+                    propsForDots: { r: "5", strokeWidth: "3", stroke: "#00cfff" },
                   }}
                   bezier
                   style={{ borderRadius: 15 }}
                 />
               </ScrollView>
             ) : (
-              <Text style={styles.placeholderText}>
-                Sin datos de peso en esta fecha
-              </Text>
+              <Text style={styles.placeholderText}>Sin datos de peso en esta fecha</Text>
             )}
           </View>
 
           <View style={styles.section}>
             <Text style={styles.label}>Última ubicación GPS:</Text>
-            <Text style={styles.pesoActual}>
-              {ubicacion || "Sin datos de GPS"}
-            </Text>
+            <Text style={styles.pesoActual}>{ubicacion || "Sin datos de GPS"}</Text>
           </View>
 
           <View style={styles.section}>
@@ -318,69 +285,43 @@ export default function MonitorProductScreen({ navigation }) {
                   return (
                     <Marker
                       key={index}
-                      coordinate={{
-                        latitude: coord.lat,
-                        longitude: coord.lng,
-                      }}
-                      title={
-                        esUltimo ? "Última ubicación" : `Punto ${index + 1}`
-                      }
+                      coordinate={{ latitude: coord.lat, longitude: coord.lng }}
+                      title={esUltimo ? "Última ubicación" : `Punto ${index + 1}`}
                       pinColor={esUltimo ? "blue" : "red"}
                     />
                   );
                 })}
-
                 <Polyline
-                  coordinates={recorrido.map((p) => ({
-                    latitude: p.lat,
-                    longitude: p.lng,
-                  }))}
+                  coordinates={recorrido.map((p) => ({ latitude: p.lat, longitude: p.lng }))}
                   strokeColor="#00cfff"
                   strokeWidth={3}
                 />
               </MapView>
             ) : (
-              <Text style={styles.placeholderText}>
-                Sin recorrido en esta fecha
-              </Text>
+              <Text style={styles.placeholderText}>Sin recorrido en esta fecha</Text>
             )}
           </View>
         </Animated.View>
       </ScrollView>
 
       <View style={styles.bottomMenu}>
-        <TouchableOpacity
-          style={styles.menuItem}
-          onPress={() => navigation.replace("Home")}
-        >
+        <TouchableOpacity style={styles.menuItem} onPress={() => navigation.replace("Home")}>
           <Ionicons name="home-outline" size={24} color="#00cfff" />
           <Text style={styles.menuText}>Inicio</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.menuItem}
-          onPress={() => navigation.replace("RegisterProduct")}
-        >
+        <TouchableOpacity style={styles.menuItem} onPress={() => navigation.replace("RegisterProduct")}>
           <Ionicons name="add-circle-outline" size={24} color="#00cfff" />
           <Text style={styles.menuText}>Registrar</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.menuItem}
-          onPress={() => navigation.replace("MonitorProduct")}
-        >
+        <TouchableOpacity style={styles.menuItem} onPress={() => navigation.replace("MonitorProduct")}>
           <Ionicons name="analytics-outline" size={24} color="#00cfff" />
           <Text style={styles.menuText}>Monitoreo</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.menuItem}
-          onPress={() => navigation.replace("Alert")}
-        >
+        <TouchableOpacity style={styles.menuItem} onPress={() => navigation.replace("Alert")}>
           <Ionicons name="alert-circle-outline" size={24} color="#00cfff" />
           <Text style={styles.menuText}>Alertas</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.menuItem}
-          onPress={() => navigation.replace("Schedule")}
-        >
+        <TouchableOpacity style={styles.menuItem} onPress={() => navigation.replace("Schedule")}>
           <Ionicons name="calendar-outline" size={24} color="#00cfff" />
           <Text style={styles.menuText}>Horario</Text>
         </TouchableOpacity>
@@ -389,13 +330,10 @@ export default function MonitorProductScreen({ navigation }) {
   );
 }
 
+/** ====== ESTILOS ====== */
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  scrollContent: {
-    paddingHorizontal: 20,
-    paddingTop: 30,
-    paddingBottom: 120,
-  },
+  scrollContent: { paddingHorizontal: 20, paddingTop: 30, paddingBottom: 120 },
   card: {
     backgroundColor: "rgba(255, 255, 255, 0.06)",
     borderRadius: 25,
@@ -407,36 +345,12 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 8,
   },
-  title: {
-    fontSize: 22,
-    fontWeight: "bold",
-    color: "#00cfff",
-    marginBottom: 20,
-    textAlign: "center",
-  },
-  section: {
-    width: "100%",
-    marginBottom: 20,
-  },
-  label: {
-    color: "#ccc",
-    fontSize: 14,
-    marginBottom: 8,
-  },
-  pesoActual: {
-    color: "white",
-    fontSize: 22,
-    fontWeight: "bold",
-  },
-  placeholderText: {
-    color: "#888",
-    fontSize: 14,
-  },
-  map: {
-    width: "100%",
-    height: 180,
-    borderRadius: 15,
-  },
+  title: { fontSize: 22, fontWeight: "bold", color: "#00cfff", marginBottom: 20, textAlign: "center" },
+  section: { width: "100%", marginBottom: 20 },
+  label: { color: "#ccc", fontSize: 14, marginBottom: 8 },
+  pesoActual: { color: "white", fontSize: 22, fontWeight: "bold" },
+  placeholderText: { color: "#888", fontSize: 14 },
+  map: { width: "100%", height: 180, borderRadius: 15 },
   bottomMenu: {
     flexDirection: "row",
     backgroundColor: "#1a1a1a",
@@ -452,15 +366,8 @@ const styles = StyleSheet.create({
     elevation: 8,
     marginBottom: 15,
   },
-  menuItem: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  menuText: {
-    marginTop: 4,
-    color: "#00cfff",
-    fontSize: 13,
-  },
+  menuItem: { alignItems: "center", justifyContent: "center" },
+  menuText: { marginTop: 4, color: "#00cfff", fontSize: 13 },
   fechaBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -470,9 +377,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     marginBottom: 20,
   },
-  fechaText: {
-    color: "white",
-    fontSize: 14,
-    marginLeft: 8,
-  },
+  fechaText: { color: "white", fontSize: 14, marginLeft: 8 },
 });
