@@ -290,7 +290,7 @@ export default function MaestroSalon() {
     }));
     try {
       const res = await fetch(
-        `${API_MONGO}/api/peso/${encodeURIComponent(producto_id)}/latest`
+        `${API_MONGO}/api/pesos/${encodeURIComponent(producto_id)}/latest`
       );
       const data = await res.json().catch(() => ({}));
       if (!res.ok)
@@ -333,7 +333,7 @@ export default function MaestroSalon() {
     }));
     try {
       const res = await fetch(
-        `${API_MONGO}/api/peso/${encodeURIComponent(producto_id)}/hoy`
+        `${API_MONGO}/api/pesos/${encodeURIComponent(producto_id)}/hoy`
       );
       const data = await res.json().catch(() => ({}));
       if (!res.ok)
@@ -380,7 +380,7 @@ export default function MaestroSalon() {
     try {
       const requests = days.map((fecha) =>
         fetch(
-          `${API_MONGO}/api/peso/${encodeURIComponent(
+          `${API_MONGO}/api/pesos/${encodeURIComponent(
             producto_id
           )}?fecha=${encodeURIComponent(fecha)}`
         )
