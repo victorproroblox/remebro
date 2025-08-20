@@ -4,13 +4,13 @@ import Producto from '../models/Producto.js';
 import { sequelize } from '../config/database.js';
 
 /**
- * GET /api/ventas
- * Ventas del usuario autenticado
+ * GET /api/ventas?id_us=123
+ * Lista ventas de un usuario (sin JWT). id_us viene en query.
  */
 export async function index(req, res) {
   try {
-    const id_us = req.user?.id_us;
-    if (!id_us) return res.status(401).json({ message: 'No autenticado' });
+    const id_us = Number(req.query?.id_us);
+    if (!id_us) return res.status(422).json({ message: 'id_us (query) es requerido y debe ser entero.' });
 
     const ventas = await Venta.findAll({
       where: { id_us },
@@ -26,20 +26,18 @@ export async function index(req, res) {
 
     return res.status(200).json(ventas);
   } catch (e) {
-    return res
-      .status(500)
-      .json({ message: 'Error en el servidor: ' + e.message });
+    return res.status(500).json({ message: 'Error en el servidor: ' + e.message });
   }
 }
 
 /**
- * GET /api/ventas/:id_ve
- * Detalle de una venta (solo si pertenece al usuario)
+ * GET /api/ventas/:id_ve?id_us=123
+ * Detalle de una venta de un usuario (sin JWT). id_us viene en query.
  */
 export async function show(req, res) {
   try {
-    const id_us = req.user?.id_us;
-    if (!id_us) return res.status(401).json({ message: 'No autenticado' });
+    const id_us = Number(req.query?.id_us);
+    if (!id_us) return res.status(422).json({ message: 'id_us (query) es requerido y debe ser entero.' });
 
     const { id_ve } = req.params;
 
@@ -54,85 +52,80 @@ export async function show(req, res) {
       ],
     });
 
-    if (!venta) return res.status(404).json({ message: 'Venta no encontrada' });
+    if (!venta) return res.status(404).json({ message: 'Venta no encontrada para este usuario.' });
 
     return res.status(200).json(venta);
   } catch (e) {
-    return res
-      .status(500)
-      .json({ message: 'Error en el servidor: ' + e.message });
+    return res.status(500).json({ message: 'Error en el servidor: ' + e.message });
   }
 }
 
 /**
  * POST /api/ventas
- * Crear venta simple (sin PayPal)
- * Body: { id_pr: 4, total_ve: 450.00 }
+ * Crear venta simple (sin PayPal / sin JWT)
+ * Body: { id_us: 123, id_pr: 4, total_ve: 450.00 }
  */
 export async function store(req, res) {
   try {
-    const id_us = req.user?.id_us;
-    if (!id_us) return res.status(401).json({ message: 'No autenticado' });
+    const id_us = Number(req.body?.id_us ?? req.query?.id_us);
+    if (!id_us) return res.status(422).json({ message: 'id_us es requerido y debe ser entero.' });
 
     const { id_pr, total_ve } = req.body;
 
     if (!id_pr || !Number.isInteger(Number(id_pr))) {
-      return res.status(422).json({ message: 'id_pr requerido y entero' });
+      return res.status(422).json({ message: 'id_pr requerido y entero.' });
     }
     if (total_ve === undefined || Number(total_ve) < 0) {
-      return res.status(422).json({ message: 'total_ve requerido y >= 0' });
+      return res.status(422).json({ message: 'total_ve requerido y >= 0.' });
     }
 
-    const prod = await Producto.findByPk(id_pr, {
-      attributes: ['id_pr', 'precio_pr'],
-    });
-    if (!prod) return res.status(404).json({ message: 'Producto no encontrado' });
+    const prod = await Producto.findByPk(id_pr, { attributes: ['id_pr', 'precio_pr', 'status_pr'] });
+    if (!prod || prod.status_pr !== 1) {
+      return res.status(404).json({ message: 'Producto inexistente o inactivo.' });
+    }
 
     const venta = await Venta.create({
       id_us,
       id_pr: prod.id_pr,
-      fec_ve: new Date(),        // 👈 asegura no nulo aunque la DB no tenga DEFAULT
+      fec_ve: new Date(),
       total_ve: Number(total_ve),
-      paypal_order_id: null,     // en flujo sin PayPal queda null
+      paypal_order_id: null,
     });
 
     return res.status(201).json({ message: 'Venta creada', venta });
   } catch (e) {
-    return res
-      .status(500)
-      .json({ message: 'Error en el servidor: ' + e.message });
+    return res.status(500).json({ message: 'Error en el servidor: ' + e.message });
   }
 }
 
 /**
  * POST /api/ventas/paypal
- * Validación y registro de una compra realizada con PayPal (ya capturada en frontend).
- * Body: { order_id: 'PAYPAL_ORDER_ID', id_pr: 4, total: 450.00 }
+ * Registrar compra PayPal ya capturada en frontend (sin JWT).
+ * Body: { id_us: 123, order_id: 'PAYPAL_ORDER_ID', id_pr: 4, total: 450.00 }
  */
-// controllers/ventas.controller.js
 export async function registrarPagoPaypal(req, res) {
   try {
-    const id_us = req.user?.id_us;
-    if (!id_us) return res.status(401).json({ message: 'No autenticado' });
+    const id_us = Number(req.body?.id_us ?? req.query?.id_us);
+    if (!id_us) return res.status(422).json({ message: 'id_us es requerido y debe ser entero.' });
 
     const { order_id, id_pr, total } = req.body;
     if (!order_id || typeof order_id !== 'string') {
-      return res.status(422).json({ message: 'order_id es requerido' });
+      return res.status(422).json({ message: 'order_id es requerido.' });
     }
     if (!id_pr || !Number.isInteger(Number(id_pr))) {
-      return res.status(422).json({ message: 'id_pr requerido y entero' });
+      return res.status(422).json({ message: 'id_pr requerido y entero.' });
     }
     if (total === undefined || Number(total) < 0) {
-      return res.status(422).json({ message: 'total requerido y >= 0' });
+      return res.status(422).json({ message: 'total requerido y >= 0.' });
     }
 
-    // 0) Valida producto (opcional pero útil para feedback claro)
+    // 0) Valida producto
     const prod = await Producto.findByPk(id_pr, { attributes: ['id_pr', 'precio_pr', 'status_pr'] });
     if (!prod || prod.status_pr !== 1) {
-      return res.status(404).json({ message: 'Producto inexistente o inactivo' });
+      return res.status(404).json({ message: 'Producto inexistente o inactivo.' });
     }
 
-    // 1) PayPal token
+    // 1) Token PayPal
     const clientId = process.env.PAYPAL_CLIENT_ID;
     const secret   = process.env.PAYPAL_SECRET;
     const baseUrl  = (process.env.PAYPAL_MODE || 'sandbox') === 'live'
@@ -148,7 +141,7 @@ export async function registrarPagoPaypal(req, res) {
       }
     );
     const accessToken = tokenResp.data?.access_token;
-    if (!accessToken) return res.status(502).json({ message: 'No se pudo autenticar con PayPal' });
+    if (!accessToken) return res.status(502).json({ message: 'No se pudo autenticar con PayPal.' });
 
     // 2) Consulta orden
     const orderResp = await axios.get(`${baseUrl}/v2/checkout/orders/${order_id}`, {
@@ -160,17 +153,16 @@ export async function registrarPagoPaypal(req, res) {
     const currency = orderResp.data?.purchase_units?.[0]?.amount?.currency_code;
 
     if (status !== 'COMPLETED') {
-      return res.status(400).json({ message: 'Pago no completado' });
+      return res.status(400).json({ message: 'Pago no completado.' });
     }
 
     // 3) Montos iguales (2 decimales)
     const normalize2 = (n) => Number(n).toFixed(2);
     if (normalize2(amount) !== normalize2(total)) {
-      return res.status(400).json({ message: 'Monto no coincide' });
+      return res.status(400).json({ message: 'Monto no coincide.' });
     }
 
-    // 4) Registrar vía SP
-    // Opción A: con multipleStatements (más simple)
+    // 4) Registrar vía SP (o INSERT directo según tu diseño)
     const sql = `
       SET @out_id_ve := 0;
       CALL checkout_paypal(:p_id_us, :p_id_pr, :p_total, :p_order_id, @out_id_ve);
@@ -184,12 +176,8 @@ export async function registrarPagoPaypal(req, res) {
         p_total: Number(total),
         p_order_id: order_id,
       },
-      // type: QueryTypes.SELECT  // opcional; Sequelize retorna el último SELECT como rows en mysql2
     });
 
-    // Dependiendo de versión/driver, rows puede ser:
-    // - array de resultsets o
-    // - directamente el último resultset.
     let outIdVe;
     if (Array.isArray(rows)) {
       const last = rows[rows.length - 1];
@@ -198,12 +186,11 @@ export async function registrarPagoPaypal(req, res) {
       outIdVe = rows?.out_id_ve;
     }
 
-    // Si quieres devolver la venta completa:
     let venta = null;
     if (outIdVe) {
       venta = await Venta.findByPk(outIdVe);
     } else {
-      // Si por alguna razón no vino el OUT, intenta localizar por order_id (idempotencia)
+      // idempotencia
       venta = await Venta.findOne({ where: { paypal_order_id: order_id } });
     }
 
@@ -213,7 +200,7 @@ export async function registrarPagoPaypal(req, res) {
       paypal: { order_id, status, amount, currency },
     });
   } catch (e) {
-    // Duplicado (si tienes UNIQUE en paypal_order_id)
+    // Duplicado (si paypal_order_id es UNIQUE)
     if (e?.original?.code === 'ER_DUP_ENTRY' || e?.original?.errno === 1062) {
       const { order_id } = req.body || {};
       const venta = await Venta.findOne({ where: { paypal_order_id: order_id } });
@@ -222,7 +209,6 @@ export async function registrarPagoPaypal(req, res) {
         venta,
       });
     }
-    // Error PayPal
     if (axios.isAxiosError(e)) {
       const code = e.response?.status || 500;
       const msg = e.response?.data || e.message;

@@ -14,9 +14,6 @@ export default function Checkout() {
   const [paying, setPaying] = useState(false);
   const [error, setError] = useState("");
 
-  const token = localStorage.getItem("token") || "";
-  const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
-
   const formatPrice = (val) => {
     const n = Number(val ?? 0);
     try {
@@ -63,7 +60,7 @@ export default function Checkout() {
           });
           if (r.ok) {
             const data = await r.json();
-            if (mounted && data) setProducto(data);
+            if (mounted && data) setProducto(data?.producto ?? data);
           }
         } catch {
           /* noop */
@@ -151,7 +148,6 @@ export default function Checkout() {
                 style={{ layout: "vertical", shape: "rect" }}
                 disabled={paying || !producto?.disponible}
                 createOrder={(data, actions) => {
-                  // Monto con 2 decimales (string)
                   return actions.order.create({
                     intent: "CAPTURE",
                     purchase_units: [
@@ -171,12 +167,11 @@ export default function Checkout() {
                   try {
                     const details = await actions.order.capture();
 
-                    // Registrar venta en backend usando Bearer (sin cookies)
+                    // Registrar venta en backend (sin Authorization/JWT)
                     const resp = await fetch(`${API_URL}/api/ventas/paypal`, {
                       method: "POST",
                       headers: {
                         "Content-Type": "application/json",
-                        ...authHeaders, // Authorization: Bearer <token>
                       },
                       body: JSON.stringify({
                         order_id: details.id,
