@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import { store, latest, pesosDelDia, pesosPorFecha } from '../controllers/peso.controller.js';
-import { authGuard } from '../middlewares/authGuard.js';
 
 const router = Router();
 
@@ -8,8 +7,8 @@ const router = Router();
 router.post('/', store);
 
 // Lecturas para la app (protegidas con JWT)
-router.get('/:producto_id/latest', authGuard, latest);
-router.get('/:producto_id/hoy',    authGuard, pesosDelDia);
-router.get('/:producto_id',        authGuard, pesosPorFecha); // ?fecha=YYYY-MM-DD
+router.get('/:producto_id/latest', latest);
+router.get('/:producto_id/hoy', pesosDelDia);
+router.get('/:producto_id', pesosPorFecha); // ?fecha=YYYY-MM-DD
 
 export default router;

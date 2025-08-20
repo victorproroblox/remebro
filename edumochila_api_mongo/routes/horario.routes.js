@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import { authGuard } from '../middlewares/authGuard.js';
 import {
   agregarClase,      // POST /clase
   reemplazarClases,  // PUT  /
@@ -9,12 +8,12 @@ import {
 const router = Router();
 
 // GET /api/horario/:producto_id/:dia
-router.get('/:producto_id/:dia', authGuard, verPorDia);
+router.get('/:producto_id/:dia', verPorDia);
 
 // POST /api/horario/clase
-router.post('/clase', authGuard, agregarClase);
+router.post('/clase', agregarClase);
 
 // PUT /api/horario
-router.put('/', authGuard, reemplazarClases);
+router.put('/', reemplazarClases);
 
 export default router;
