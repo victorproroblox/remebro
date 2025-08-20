@@ -1,8 +1,7 @@
 // src/pages/MaestroSalon.jsx
 import React, { useEffect, useState, useCallback } from "react";
-import "./Login.css"; // o tu CSS de salón
-import { API_URL } from "../env";
-import { API_MONGO_URL } from "../env";
+import "./Login.css";
+import { API_URL, API_MONGO_URL } from "../env";
 
 const API_SQL = API_URL || "https://edumochila-api-mysql.onrender.com";
 const API_MONGO = API_MONGO_URL || "https://edumochila-api-mongo.onrender.com";
@@ -19,7 +18,7 @@ const fmtDate = (d) => {
 };
 const todayStr = () => fmtDate(new Date());
 
-/** Devuelve array de strings YYYY-MM-DD inclusive (de->a) */
+/** Devuelve array de YYYY-MM-DD entre from/to inclusive */
 const eachDate = (fromStr, toStr) => {
   const list = [];
   const from = new Date(fromStr + "T00:00:00");
@@ -31,27 +30,57 @@ const eachDate = (fromStr, toStr) => {
 };
 
 /* =======================
+   Normalización de series
+======================= */
+/** Intenta mapear cualquier payload a { t, kg } */
+const normalizePoint = (obj) => {
+  const rawT =
+    obj?.t ?? obj?.fecha ?? obj?.date ?? obj?.createdAt ?? obj?.timestamp;
+  const rawKg = obj?.kg ?? obj?.peso ?? obj?.weight ?? obj?.valor;
+  const t = rawT ? new Date(rawT).toISOString() : null;
+  const kg = rawKg != null ? Number(rawKg) : null;
+  return { t, kg };
+};
+
+/** Recibe array y devuelve solo puntos válidos [{t,kg}] */
+const normalizeSeries = (arr) => {
+  if (!Array.isArray(arr)) return [];
+  return arr
+    .map(normalizePoint)
+    .filter(
+      (p) =>
+        p.t &&
+        Number.isFinite(new Date(p.t).getTime()) &&
+        Number.isFinite(p.kg)
+    );
+};
+
+/* =======================
    Mini LineChart SVG
-   props: { data:[{t, kg}], width, height }
 ======================= */
 function LineChart({ data, width = 520, height = 160 }) {
-  if (!data || data.length === 0) {
+  const clean = normalizeSeries(data || []);
+  if (clean.length === 0) {
     return (
       <div className="msalon-empty" style={{ marginTop: 8 }}>
         Sin datos para graficar.
       </div>
     );
   }
-  const sorted = [...data].sort(
+
+  const sorted = clean.sort(
     (a, b) => new Date(a.t).getTime() - new Date(b.t).getTime()
   );
   const times = sorted.map((d) => new Date(d.t).getTime());
   const values = sorted.map((d) => Number(d.kg));
-  const minX = Math.min(...times);
-  const maxX = Math.max(...times);
+
+  let minX = Math.min(...times);
+  let maxX = Math.max(...times);
   const minY = Math.min(...values);
   const maxY = Math.max(...values);
   const pad = 24;
+
+  if (minX === maxX) maxX = minX + 1; // evita división por 0
 
   const xScale = (x) =>
     pad + ((x - minX) / (maxX - minX || 1)) * (width - pad * 2);
@@ -116,11 +145,10 @@ export default function MaestroSalon() {
   const [loadingList, setLoadingList] = useState(false);
   const [loadingSave, setLoadingSave] = useState(false);
 
-  // Pesos por alumno:
   // { [producto_id]: { actual, hoy[], rango[], filtros:{from,to}, loading, error } }
   const [pesos, setPesos] = useState({});
 
-  // Usuario guardado por login
+  // Usuario sin JWT
   const usuario = JSON.parse(localStorage.getItem("usuario") || "null");
   const id_us = usuario?.id_us;
 
@@ -147,7 +175,7 @@ export default function MaestroSalon() {
       const list = Array.isArray(data.data) ? data.data : [];
       setAlumnos(list);
 
-      // Inicializa filtros
+      // Inicializa pesos/filtros
       setPesos((prev) => {
         const next = { ...prev };
         list.forEach((a) => {
@@ -164,7 +192,7 @@ export default function MaestroSalon() {
         });
         return next;
       });
-    } catch (e) {
+    } catch {
       setMsg("Error de red al cargar alumnos");
       setAlumnos([]);
     } finally {
@@ -252,7 +280,7 @@ export default function MaestroSalon() {
     }
   };
 
-  /* ----------- MONGO: pesos (adaptado a tus rutas) ----------- */
+  /* ----------- MONGO: pesos (tus rutas) ----------- */
 
   // GET /api/peso/:producto_id/latest
   const fetchPesoActual = async (producto_id) => {
@@ -262,19 +290,26 @@ export default function MaestroSalon() {
     }));
     try {
       const res = await fetch(
-        `${API_MONGO}/api/pesos/${encodeURIComponent(producto_id)}/latest`
+        `${API_MONGO}/api/peso/${encodeURIComponent(producto_id)}/latest`
       );
       const data = await res.json().catch(() => ({}));
       if (!res.ok)
         throw new Error(
           data?.message || data?.mensaje || "Error al obtener peso actual"
         );
-      // se espera { kg, t? }
+
+      const actualKg =
+        data?.kg ??
+        data?.peso ??
+        data?.weight ??
+        data?.valor ??
+        (Number.isFinite(Number(data)) ? Number(data) : null);
+
       setPesos((p) => ({
         ...p,
         [producto_id]: {
           ...p[producto_id],
-          actual: data?.kg ?? null,
+          actual: actualKg,
           loading: false,
         },
       }));
@@ -290,7 +325,7 @@ export default function MaestroSalon() {
     }
   };
 
-  // GET /api/peso/:producto_id/hoy -> [{t, kg}, ...]
+  // GET /api/peso/:producto_id/hoy -> array
   const fetchPesoDeHoy = async (producto_id) => {
     setPesos((p) => ({
       ...p,
@@ -298,19 +333,21 @@ export default function MaestroSalon() {
     }));
     try {
       const res = await fetch(
-        `${API_MONGO}/api/pesos/${encodeURIComponent(producto_id)}/hoy`
+        `${API_MONGO}/api/peso/${encodeURIComponent(producto_id)}/hoy`
       );
       const data = await res.json().catch(() => ({}));
       if (!res.ok)
         throw new Error(
           data?.message || data?.mensaje || "Error al obtener pesos del día"
         );
+
+      const hoySeries = normalizeSeries(data);
       setPesos((p) => ({
         ...p,
         [producto_id]: {
           ...p[producto_id],
-          hoy: Array.isArray(data) ? data : [],
-          rango: [], // limpio rango cuando pulsan "Hoy"
+          hoy: hoySeries,
+          rango: [],
           loading: false,
         },
       }));
@@ -326,7 +363,7 @@ export default function MaestroSalon() {
     }
   };
 
-  // GET /api/peso/:producto_id?fecha=YYYY-MM-DD  (por día) -> acumulamos para el rango
+  // GET /api/peso/:producto_id?fecha=YYYY-MM-DD (acumula por rango)
   const fetchPesoPorRango = async (producto_id) => {
     const f = pesos[producto_id]?.filtros;
     const from = f?.from || todayStr();
@@ -343,16 +380,16 @@ export default function MaestroSalon() {
     try {
       const requests = days.map((fecha) =>
         fetch(
-          `${API_MONGO}/api/pesos/${encodeURIComponent(
+          `${API_MONGO}/api/peso/${encodeURIComponent(
             producto_id
           )}?fecha=${encodeURIComponent(fecha)}`
         )
           .then((r) => r.json().catch(() => []))
-          .then((arr) => (Array.isArray(arr) ? arr : []))
+          .then((arr) => normalizeSeries(arr))
           .catch(() => [])
       );
       const chunks = await Promise.all(requests);
-      const merged = chunks.flat(); // [{t, kg}, ...]
+      const merged = chunks.flat();
 
       setPesos((p) => ({
         ...p,
@@ -374,7 +411,7 @@ export default function MaestroSalon() {
     }
   };
 
-  // Auto-carga (actual + hoy) cuando llegan alumnos
+  // Auto-carga: actual + hoy cuando hay alumnos
   useEffect(() => {
     (async () => {
       for (const a of alumnos) {
@@ -409,7 +446,7 @@ export default function MaestroSalon() {
             Administra a tus alumnos y vincula sus producto_id
           </p>
 
-          <div className="msalon-actions">
+        <div className="msalon-actions">
             <button className="btn-primary" onClick={() => setShowForm((s) => !s)}>
               {showForm ? "Cerrar" : "Agregar alumno"}
             </button>
@@ -488,7 +525,11 @@ export default function MaestroSalon() {
                     {/* PESO ACTUAL */}
                     <div style={{ marginTop: 8, fontSize: 14, color: "#cfe7ee" }}>
                       <strong>Peso actual:</strong>{" "}
-                      {p.loading ? "Cargando..." : p.actual != null ? `${p.actual} kg` : "—"}
+                      {p.loading
+                        ? "Cargando..."
+                        : p.actual != null
+                        ? `${p.actual} kg`
+                        : "—"}
                       <button
                         className="btn-link"
                         style={{ marginLeft: 10 }}
