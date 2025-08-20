@@ -12,7 +12,7 @@ import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-/** API MySQL (emite el JWT que usaremos también para Mongo) */
+/** API MySQL (sin JWT) */
 export const API_URL = "https://edumochila-api-mysql.onrender.com";
 
 export default function LoginScreen({ navigation }) {
@@ -38,8 +38,9 @@ export default function LoginScreen({ navigation }) {
     const timedFetch = (resource, options = {}, ms = 15000) => {
       const controller = new AbortController();
       const id = setTimeout(() => controller.abort(), ms);
-      return fetch(resource, { ...options, signal: controller.signal })
-        .finally(() => clearTimeout(id));
+      return fetch(resource, { ...options, signal: controller.signal }).finally(() =>
+        clearTimeout(id)
+      );
     };
 
     const intentos = 2;
@@ -64,8 +65,8 @@ export default function LoginScreen({ navigation }) {
         );
 
         if (!res.ok) {
-          const raw = await res.text(); // 502 suele regresar HTML
-          console.log(`LOGIN intento ${i} -> status:`, res.status, "raw:", raw.slice(0, 600));
+          const raw = await res.text();
+          console.log(`LOGIN intento ${i} -> status:`, res.status, "raw:", raw.slice(0, 400));
           if (i < intentos && (res.status === 502 || res.status === 504)) {
             await new Promise((r) => setTimeout(r, 1200)); // backoff simple
             continue;
@@ -77,20 +78,32 @@ export default function LoginScreen({ navigation }) {
         const data = await res.json().catch(() => ({}));
         console.log("LOGIN OK:", data);
 
-        if (data?.estatus === "exitoso" && data?.access_token) {
-          const token = String(data.access_token);
-          await AsyncStorage.multiSet([
-            ["token", token],                // compat histórico
-            ["mysql_token", token],          // emitido por MySQL
-            ["mongo_token", token],          // reutilizado para Mongo
-            ["user", JSON.stringify(data.usuario ?? {})],
-          ]);
-          Alert.alert("Bienvenido", data.mensaje || "Inicio de sesión correcto");
-          navigation.replace("Home");
+        // 👉 Ya NO exigimos data.access_token (se quitó JWT)
+        if (data?.estatus === "exitoso" && data?.usuario) {
+          // Guarda solo el usuario
+          await AsyncStorage.setItem("user", JSON.stringify(data.usuario));
+
+          // Mensaje
+          if (data?.mensaje) {
+            Alert.alert("Bienvenido", data.mensaje);
+          }
+
+          // Navegación robusta: resetea el stack para que no pueda volver al login
+          // Cambia 'Home' si tu ruta principal tiene otro nombre.
+          navigation.reset({
+            index: 0,
+            routes: [{ name: "Home" }],
+          });
+
+          // Si quieres rutear por tipo de usuario:
+          // const tip = Number(data.usuario?.tip_us ?? 2);
+          // const destino = tip === 3 ? "Maestro" : "Home";
+          // navigation.reset({ index: 0, routes: [{ name: destino }] });
+
           return;
         }
 
-        Alert.alert("Error", data?.mensaje || "Respuesta inesperada del servidor");
+        Alert.alert("Error", data?.mensaje || "Respuesta inválida del servidor");
         return;
       } catch (err) {
         console.log(`LOGIN intento ${i} excepción:`, err?.message);
