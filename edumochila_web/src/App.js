@@ -13,6 +13,7 @@ import AgregarProducto from './components/AgregarProducto';
 import EditarProducto from './components/EditarProducto';
 import Checkout from './components/Checkout';
 import CompraExitosa from "./components/CompraExitosa";
+import MaestroHome from "./components/MaestroHome";
 
 function App() {
   return (
@@ -29,6 +30,8 @@ function App() {
          <Route path="/editarproducto/:id" element={<EditarProducto />} />
          <Route path="/checkout/:id_pr" element={<Checkout />} />
          <Route path="/compra-exitosa" element={<CompraExitosa />} />
+         <Route path="/maestro" element={<MaestroHome />} />
+
       </Routes>
     </Router>
   );

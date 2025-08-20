@@ -3,8 +3,7 @@ import "./Login.css";
 import { useNavigate } from "react-router-dom";
 import { MdBackpack } from "react-icons/md";
 import { API_URL } from "../env";
-import { setToken } from '../lib/auth';
-
+import { setToken } from "../lib/auth";
 
 export default function Login() {
   const [nom_us, setNomUs] = useState("");
@@ -23,61 +22,63 @@ export default function Login() {
       return;
     }
 
-    setLoading(true);
     try {
-  setLoading(true);
-  setMensaje('');
+      setLoading(true);
+      const payload = { nom_us: nom_us.trim(), pass_us };
 
-  const payload = { nom_us: nom_us.trim(), pass_us };
+      const res = await fetch(`${API_URL}/api/auth/login`, {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
 
-  const res = await fetch(`${API_URL}/api/auth/login`, {
-    method: 'POST',
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
+      const data = await res.json().catch(() => null);
 
-  const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        const msg =
+          (data && (data.mensaje || data.error)) ||
+          `Error del servidor (${res.status})`;
+        setMensaje(msg);
+        return;
+      }
 
-  if (!res.ok) {
-    // Mensaje de error que venga del backend o fallback por status
-    const msg =
-      (data && (data.mensaje || data.error)) ||
-      `Error del servidor (${res.status})`;
-    setMensaje(msg);
-    return;
-  }
+      if (!data || data.estatus !== "exitoso" || !data.access_token) {
+        setMensaje(
+          (data && data.mensaje) || "Respuesta inválida del servidor."
+        );
+        return;
+      }
 
-  if (!data || data.estatus !== 'exitoso' || !data.access_token) {
-    setMensaje(
-      (data && data.mensaje) || 'Respuesta inválida del servidor.'
-    );
-    return;
-  }
+      // Guardar token y usuario
+      setToken(data.access_token);
+      localStorage.setItem("usuario", JSON.stringify(data.usuario));
 
-  // ✅ guarda token con helper y el usuario
-  setToken(data.access_token);
-  localStorage.setItem('usuario', JSON.stringify(data.usuario));
+      setMensaje("Inicio de sesión exitoso. Redirigiendo…");
 
-  setMensaje('Inicio de sesión exitoso. Redirigiendo…');
+      // 👉 Ruteo según tipo de usuario:
+      const tip_us = Number(data.usuario?.tip_us ?? 2);
 
-  const tip_us = Number(data.usuario?.tip_us ?? 2);
-  setTimeout(() => {
-    navigate(tip_us === 1 ? '/dashboard' : '/home', { replace: true });
-  }, 400);
-} catch (err) {
-  setMensaje('Error de red: ' + (err?.message || String(err)));
-} finally {
-  setLoading(false);
-}
-
+      setTimeout(() => {
+        if (tip_us === 1) {
+          navigate("/dashboard", { replace: true }); // admin (si lo usas)
+        } else if (tip_us === 3) {
+          navigate("/maestro", { replace: true });   // maestro
+        } else {
+          navigate("/home", { replace: true });      // cliente/alumno
+        }
+      }, 400);
+    } catch (err) {
+      setMensaje("Error de red: " + (err?.message || String(err)));
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleGoogleLogin = () => {
     setLoadingGoogle(true);
-    // Inicia el flujo OAuth en tu backend Node (ajusta la ruta si difiere)
     window.location.href = `${API_URL}/api/auth/google`;
   };
 
@@ -110,12 +111,10 @@ export default function Login() {
           {loading ? "Ingresando…" : "Entrar"}
         </button>
 
-        {/* separador */}
         <div className="divider">
           <span>o</span>
         </div>
 
-        {/* botón Google */}
         <button
           type="button"
           className="btn-google"
@@ -124,6 +123,7 @@ export default function Login() {
           aria-disabled={loadingGoogle}
           title="Continuar con Google"
         >
+          {/* icono google */}
           <svg
             xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 533.5 544.3"

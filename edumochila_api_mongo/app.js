@@ -47,7 +47,7 @@ app.get("/api/health", (req, res) =>
 app.use("/api/horario", authGuard, horarioRoutes);
 app.use("/api/mensajes", authGuard, mensajesRoutes);
 app.use("/api/pesos", authGuard, pesoRoutes);
-app.use("/api/ubicaciones", authGuard, ubicacionRoutes);
+app.use("/api/ubicaciones", ubicacionRoutes);
 app.use("/api/productos", authGuard, productRoutes);
 
 /* ============ 404 ============ */
