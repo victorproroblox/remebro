@@ -21,44 +21,19 @@ import googleRoutes from './routes/auth.google.routes.js';
 
 const app = express();
 
-/* ----------------------------- CORS CONFIG ----------------------------- */
-// Si ALLOWED_ORIGINS no viene, usa localhost y tu dominio de Render.
-const corsDefaults = 'http://localhost:3000,https://edumochila-web.onrender.com, http://localhost:3000, https://edumochila-api-mysql.onrender.com/api/auth/login' ;
-const allowList = (process.env.ALLOWED_ORIGINS?.trim() || corsDefaults)
-  .split(',').map(s => s.trim()).filter(Boolean);
-
-const corsOptions = {
-  origin(origin, cb) {
-    if (!origin) return cb(null, true);              // permite requests sin Origin (curl/health)
-    if (allowList.includes(origin)) return cb(null, true);
-    return cb(new Error('Not allowed by CORS'));
-  },
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  // Ya no usamos JWT, así que no necesitas 'Authorization' aquí
-  allowedHeaders: ['Content-Type', 'Accept'],
-  credentials: false,
-  optionsSuccessStatus: 204,
-};
-/* ---------------------------------------------------------------------- */
+/* ---------------- CORS: permitir TODO (solo para test) ---------------- */
+app.use(cors());              // <= permite cualquier origin y headers
+app.options('*', cors());     // <= atiende preflight en cualquier ruta
+/* --------------------------------------------------------------------- */
 
 /* ------------------------------ MIDDLEWARES ---------------------------- */
-app.use(
-  helmet({
-    crossOriginResourcePolicy: { policy: 'cross-origin' },
-  })
-);
-app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));  // preflight
-
+app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
-/* ---------------------------------------------------------------------- */
 
 /* --------------------------------- RUTAS -------------------------------- */
 app.use('/api', healthRoutes);
-
-// SIN JWT / SIN PASSPORT (se retiraron authRoutes y googleRoutes)
 app.use('/api/auth', authRoutes);
 app.use('/api/auth', googleRoutes);
 app.use('/api/productos', productoRoutes);
@@ -69,12 +44,9 @@ app.use('/api/ventas', ventasRoutes);
 app.use('/api/codigos', codigosRoutes);
 app.use('/api/estados', estadosRoutes);
 app.use('/api', alumnosRoutes);
-/* ----------------------------------------------------------------------- */
 
-// 404
+/* --------------------------------- 404 & ERR --------------------------- */
 app.use((req, res) => res.status(404).json({ message: 'Ruta no encontrada' }));
-
-// Error handler
 app.use(errorHandler);
 
 /* --------------------------------- ARRANQUE ----------------------------- */
