@@ -39,7 +39,7 @@ function App() {
          <Route path="/maestro" element={<MaestroHome />} />
          <Route path="/maestro/grupos" element={<MaestroSalon />} />
          <Route path="/mis-compras" element={<MisCompras />} />
-         <Route path="/admin/reportes" element={<AdminReportes />} />
+         <Route path="/reportes" element={<AdminReportes />} />
       </Routes>
     </Router>
   );
