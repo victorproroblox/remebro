@@ -1,5 +1,51 @@
 // IMPORTANTE: no dependemos de asociaciones aquí
-import Codigo from '../models/Codigo.js';
+// controllers/codigos.controller.js
+import { QueryTypes } from 'sequelize';
+import { sequelize } from '../config/database.js';   // 👈 IMPORTANTE
+import Codigo from '../models/Codigo.js';             // (opcional si luego lo usas)
+/**
+ * GET /api/codigos/mios?id_us=123
+ * Devuelve los códigos (y la info mínima de la venta/producto) del usuario.
+ */
+export async function misCodigosPorUsuario(req, res) {
+  try {
+    const id_us = Number(req.query?.id_us);
+    if (!id_us) {
+      return res.status(422).json({ message: 'id_us es requerido y debe ser entero.' });
+    }
+
+    // Join directo con SQL para no depender de asociaciones
+    const rows = await sequelize.query(
+      `
+      SELECT 
+        c.id            AS codigo_id,
+        c.codigo        AS codigo,
+        c.creado_en     AS creado_en,
+        v.id_ve         AS id_ve,
+        v.fec_ve        AS fec_ve,
+        v.total_ve      AS total_ve,
+        p.id_pr         AS id_pr,
+        p.nom_pr        AS nom_pr,
+        p.precio_pr     AS precio_pr,
+        p.img_pr        AS img_pr
+      FROM codigos c
+      INNER JOIN ventas v   ON v.id_ve = c.id_ve
+      INNER JOIN productos p ON p.id_pr = v.id_pr
+      WHERE v.id_us = :id_us
+      ORDER BY c.creado_en DESC, c.id DESC
+      `,
+      {
+        type: QueryTypes.SELECT,
+        replacements: { id_us },
+      }
+    );
+
+    return res.json({ data: rows });
+  } catch (e) {
+    return res.status(500).json({ message: 'Error en el servidor: ' + e.message });
+  }
+}
+
 
 /**
  * GET /api/codigos/ultimo
