@@ -1,88 +1,61 @@
-// src/pages/CompraExitosa.js
 import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Navbar from "./Navbar";
 import { MdCheckCircle } from "react-icons/md";
-import { API_URL } from "../env"; // asegúrate que apunte a tu API MySQL en Render
+import { API_URL } from "../env";
 
 export default function CompraExitosa() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Guardamos el producto que se compró por si quieres usarlo como fallback
-  const productoId = useMemo(() => {
+  // Preferimos el id_ve (venta) para pedir el código recién generado
+  const ventaId = useMemo(() => {
     return (
-      location?.state?.producto_id ||
-      sessionStorage.getItem("last_compra_producto_id") ||
-      ""
+      location?.state?.venta_id ||
+      sessionStorage.getItem("last_venta_id") ||
+      null
     );
   }, [location]);
 
-  // Mantener el producto_id en sessionStorage, por si recargan la página
+  const [codigo, setCodigo] = useState(null);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState("");
+
+  // Guarda venta_id si vino por state (para F5)
   useEffect(() => {
-    if (location?.state?.producto_id) {
-      sessionStorage.setItem(
-        "last_compra_producto_id",
-        String(location.state.producto_id)
-      );
+    if (location?.state?.venta_id) {
+      sessionStorage.setItem("last_venta_id", String(location.state.venta_id));
     }
   }, [location]);
 
-  // Estado para el código más reciente
-  const [codigo, setCodigo] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [mensaje, setMensaje] = useState("");
-
+  // Pide el código más reciente (por venta, o global si no hay venta_id)
   useEffect(() => {
-    let alive = true;
-
-    const fetchUltimoCodigo = async () => {
-      setLoading(true);
-      setMensaje("");
+    let vivo = true;
+    (async () => {
+      setCargando(true);
+      setError("");
       try {
-        // Llama al endpoint público: GET /api/codigos/ultimo
-        const res = await fetch(`${API_URL}/api/codigos/ultimo`, {
-          headers: { Accept: "application/json" },
-        });
+        let url = `${API_URL}/api/codigos/ultimo`;
+        if (ventaId) url += `?id_ve=${encodeURIComponent(ventaId)}`;
 
-        if (!res.ok) {
-          // Si por alguna razón falla, no rompas la vista
-          const raw = await res.text().catch(() => "");
-          throw new Error(
-            `No se pudo obtener el código. (${res.status}) ${raw.slice(0, 180)}`
-          );
+        const r = await fetch(url, { headers: { Accept: "application/json" } });
+        const data = await r.json().catch(() => ({}));
+
+        if (!r.ok) {
+          throw new Error(data?.message || "No se pudo obtener el código.");
         }
 
-        const data = await res.json().catch(() => ({}));
-        // Esperamos algo como: { codigo: "ABC123", id_ve, creado_en }
-        const c = data?.codigo || data?.data?.codigo || "";
-        if (alive) {
-          if (c) {
-            setCodigo(String(c));
-          } else {
-            // Fallback si la API no trae el campo esperado
-            setMensaje("No se recibió el código recién generado.");
-          }
-        }
+        if (vivo) setCodigo(data?.codigo || null);
       } catch (e) {
-        if (alive) {
-          setMensaje(
-            e?.message || "No se pudo consultar el código recién generado."
-          );
-        }
+        if (vivo) setError(e.message || "No se pudo obtener el código.");
       } finally {
-        if (alive) setLoading(false);
+        if (vivo) setCargando(false);
       }
-    };
-
-    fetchUltimoCodigo();
+    })();
     return () => {
-      alive = false;
+      vivo = false;
     };
-  }, []);
-
-  // Lo que vamos a mostrar: prioriza el código traído de la API; si no, muestra el productoId como respaldo
-  const codigoMostrado = codigo || productoId || "—";
+  }, [ventaId]);
 
   return (
     <>
@@ -127,7 +100,6 @@ export default function CompraExitosa() {
             }}
           >
             <p style={{ margin: 0, fontSize: 16 }}>Tu código de producto es:</p>
-
             <p
               style={{
                 margin: "6px 0 0",
@@ -135,24 +107,18 @@ export default function CompraExitosa() {
                 fontWeight: "bold",
                 color: "#00cfff",
                 letterSpacing: 1,
+                minHeight: 32,
               }}
             >
-              {loading ? "Cargando..." : codigoMostrado}
+              {cargando ? "Cargando…" : codigo ?? "—"}
             </p>
-
-            {!!mensaje && (
-              <p
-                style={{
-                  marginTop: 10,
-                  fontSize: 13,
-                  color: "#ffd9d9",
-                  opacity: 0.85,
-                }}
-              >
-                {mensaje}
-              </p>
-            )}
           </div>
+
+          {!!error && (
+            <p style={{ marginTop: 6, color: "#fca5a5", fontSize: 14 }}>
+              {error}
+            </p>
+          )}
 
           <button
             onClick={() => navigate("/home")}
