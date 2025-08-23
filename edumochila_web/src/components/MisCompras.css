@@ -3,7 +3,7 @@
 .miscompras-wrapper {
   min-height: calc(100vh - 64px);
   background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
-  padding: 40px 20px;   /* 👈 más espacio arriba */
+  padding: 100px 20px 40px; /* 👈 más espacio arriba (antes era 40px) */
   display: flex;
   flex-direction: column;
   align-items: center;
