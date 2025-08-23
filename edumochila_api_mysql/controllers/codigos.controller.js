@@ -50,7 +50,37 @@ export async function listarCodigos(_req, res) {
 }
 
 export async function misCodigosPorUsuario(req, res) {
-  // Si en algún momento quieres esto, aquí normalmente necesitarías join con ventas->usuarios.
-  // Lo dejo como placeholder:
-  return res.status(501).json({ message: 'No implementado' });
+  try {
+    const id_us = Number(req.query?.id_us ?? req.body?.id_us);
+    if (!id_us) {
+      return res.status(422).json({ message: 'id_us es requerido y debe ser entero.' });
+    }
+
+    const sql = `
+      SELECT
+        c.id           AS codigo_id,
+        c.codigo       AS codigo,
+        c.creado_en    AS creado_en,
+        v.id_ve        AS id_ve,
+        v.fec_ve       AS fec_ve,
+        v.total_ve     AS total_ve,
+        p.id_pr        AS id_pr,
+        p.nom_pr       AS nom_pr,
+        p.precio_pr    AS precio_pr,
+        p.img_pr       AS img_pr
+      FROM codigos c
+      INNER JOIN ventas v  ON v.id_ve = c.id_ve
+      INNER JOIN productos p ON p.id_pr = v.id_pr
+      WHERE v.id_us = :id_us
+      ORDER BY c.creado_en DESC, v.fec_ve DESC
+    `;
+
+    const [rows] = await sequelize.query(sql, {
+      replacements: { id_us },
+    });
+
+    return res.json({ data: rows });
+  } catch (e) {
+    return res.status(500).json({ message: 'Error en el servidor: ' + e.message });
+  }
 }

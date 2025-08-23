@@ -1,0 +1,179 @@
+/* src/pages/MisCompras.css */
+
+.miscompras {
+  min-height: calc(100vh - 64px);
+  background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+  padding: 28px 18px 48px;
+  color: #eef6fb;
+}
+
+/* Contenedor principal */
+.mc-container {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+/* Header */
+.mc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 8px 0 18px;
+}
+
+.mc-title {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: .3px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mc-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.mc-btn {
+  appearance: none;
+  border: 0;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform .06s ease, opacity .15s ease;
+}
+.mc-btn:active { transform: translateY(1px) }
+
+.mc-btn--primary {
+  background: #00aaff;
+  color: #fff;
+}
+.mc-btn--ghost {
+  background: transparent;
+  color: #cfe7ee;
+  border: 1px solid rgba(255,255,255,.2);
+}
+
+/* Estado / mensajes */
+.mc-state {
+  background: rgba(0,0,0,.4);
+  border: 1px solid rgba(255,255,255,.1);
+  color: #d9f2ff;
+  padding: 14px 16px;
+  border-radius: 12px;
+  margin: 14px 0;
+  text-align: center;
+}
+.mc-state--error {
+  color: #ffd6d6;
+  border-color: rgba(255, 89, 89, .35);
+}
+
+/* Grid de tarjetas */
+.mc-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 16px;
+}
+
+@media (max-width: 860px) {
+  .mc-grid { grid-template-columns: repeat(6, 1fr); }
+}
+@media (max-width: 520px) {
+  .mc-header { flex-direction: column; align-items: flex-start; }
+  .mc-actions { width: 100%; }
+  .mc-actions .mc-btn { flex: 1; }
+}
+
+/* Tarjeta */
+.mc-card {
+  grid-column: span 6;                     /* 2 por fila en desktop */
+  background: rgba(0,0,0,.45);
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  box-shadow: 0 10px 22px rgba(0,0,0,.28);
+}
+
+@media (max-width: 860px) {
+  .mc-card { grid-column: span 6; }        /* 1 por fila en tablet */
+}
+@media (max-width: 520px) {
+  .mc-card { grid-column: span 6; }        /* 1 por fila en móvil */
+}
+
+/* Imagen producto */
+.mc-thumb {
+  width: 96px;
+  height: 96px;
+  border-radius: 12px;
+  object-fit: cover;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.05);
+}
+
+/* Info */
+.mc-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.mc-name {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0 0 4px;
+  color: #eaf8ff;
+}
+.mc-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  font-size: 14px;
+  opacity: .9;
+}
+
+.mc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255,255,255,.07);
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 999px;
+  padding: 6px 10px;
+}
+
+.mc-chip--ok {
+  background: rgba(0, 170, 255, .12);
+  border-color: rgba(0, 170, 255, .35);
+  color: #9de1ff;
+}
+.mc-chip--code {
+  background: rgba(34, 211, 238, .1);
+  border-color: rgba(34, 211, 238, .35);
+  color: #9af7ff;
+  letter-spacing: .4px;
+  font-weight: 700;
+}
+
+/* Botoncitos por tarjeta */
+.mc-card-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mc-mini {
+  padding: 8px 10px;
+  font-size: 13px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,.18);
+  background: rgba(255,255,255,.06);
+  color: #eaf7ff;
+  cursor: pointer;
+}
+.mc-mini:hover { background: rgba(255,255,255,.1) }

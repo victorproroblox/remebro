@@ -15,6 +15,8 @@ import Checkout from './components/Checkout';
 import CompraExitosa from "./components/CompraExitosa";
 import MaestroHome from "./components/MaestroHome";
 import MaestroSalon from "./components/MaestroSalon";
+import MisCompras from "./pages/MisCompras";
+
 
 function App() {
   return (
@@ -33,6 +35,7 @@ function App() {
          <Route path="/compra-exitosa" element={<CompraExitosa />} />
          <Route path="/maestro" element={<MaestroHome />} />
          <Route path="/maestro/grupos" element={<MaestroSalon />} />
+         <Route path="/mis-compras" element={<MisCompras />} />
 
       </Routes>
     </Router>
