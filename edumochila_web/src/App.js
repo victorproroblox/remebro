@@ -16,7 +16,7 @@ import CompraExitosa from "./components/CompraExitosa";
 import MaestroHome from "./components/MaestroHome";
 import MaestroSalon from "./components/MaestroSalon";
 import MisCompras from "./components/MisCompras";
-import AdminReportes from './components/AdminReportes.jsx';
+import AdminReportes from './components/AdminReportes.js';
 
 
 

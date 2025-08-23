@@ -1,3 +1,4 @@
+// src/pages/AdminDashboard.jsx
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import './Dashboard.css';
@@ -7,14 +8,13 @@ export default function AdminDashboard() {
   const navigate = useNavigate();
 
   const handleLogout = () => {
-    // Solo limpiamos la info de usuario guardada por la app (sin JWT)
+    // Limpia los datos locales de la app (sin JWT)
     localStorage.removeItem('usuario');
     navigate('/');
   };
 
-  const irAProductos = () => {
-    navigate('/productos');
-  };
+  const irAProductos = () => navigate('/productos');
+  const irAReportes = () => navigate('/reportes');
 
   return (
     <div className="dashboard-wrapper">
@@ -32,9 +32,9 @@ export default function AdminDashboard() {
           <p>Administra el catálogo de productos, stock e imágenes.</p>
         </div>
 
-        <div className="card">
+        <div className="card" onClick={irAReportes} style={{ cursor: 'pointer' }}>
           <h2>Ventas y Reportes</h2>
-          <p>Consulta reportes diarios, exporta ventas y genera gráficas.</p>
+          <p>Consulta reportes, exporta información y genera tablas.</p>
         </div>
       </div>
     </div>
