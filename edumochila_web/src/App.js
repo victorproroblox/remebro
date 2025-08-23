@@ -16,6 +16,9 @@ import CompraExitosa from "./components/CompraExitosa";
 import MaestroHome from "./components/MaestroHome";
 import MaestroSalon from "./components/MaestroSalon";
 import MisCompras from "./components/MisCompras";
+import AdminReportes from './components/AdminReportes.jsx';
+
+
 
 
 function App() {
@@ -36,7 +39,7 @@ function App() {
          <Route path="/maestro" element={<MaestroHome />} />
          <Route path="/maestro/grupos" element={<MaestroSalon />} />
          <Route path="/mis-compras" element={<MisCompras />} />
-
+         <Route path="/admin/reportes" element={<AdminReportes />} />
       </Routes>
     </Router>
   );

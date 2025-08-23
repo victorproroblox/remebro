@@ -18,6 +18,9 @@ import estadosRoutes from './routes/estados.routes.js';
 import alumnosRoutes from './routes/alumnos.routes.js';
 import authRoutes from './routes/auth.routes.js';
 import googleRoutes from './routes/auth.google.routes.js';
+import reportesRoutes from './routes/reportes.routes.js';
+
+
 
 const app = express();
 
@@ -44,6 +47,7 @@ app.use('/api/ventas', ventasRoutes);
 app.use('/api/codigos', codigosRoutes);
 app.use('/api/estados', estadosRoutes);
 app.use('/api', alumnosRoutes);
+app.use('/api/reportes', reportesRoutes);
 
 /* --------------------------------- 404 & ERR --------------------------- */
 app.use((req, res) => res.status(404).json({ message: 'Ruta no encontrada' }));
