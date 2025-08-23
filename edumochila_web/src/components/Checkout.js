@@ -166,17 +166,18 @@ export default function Checkout() {
                   setPaying(true);
                   try {
                     const details = await actions.order.capture();
+                    const user = JSON.parse(localStorage.getItem('usuario') || 'null');
+                    const id_us = Number(user?.id_us || 0);
 
                     // Registrar venta en backend (sin Authorization/JWT)
                     const resp = await fetch(`${API_URL}/api/ventas/paypal`, {
                       method: "POST",
-                      headers: {
-                        "Content-Type": "application/json",
-                      },
+                      headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({
                         order_id: details.id,
                         id_pr: producto?.id_pr,
                         total: Number(producto?.precio_pr ?? 0),
+                        id_us, // ⬅️ ahora sí lo enviamos
                       }),
                     });
 

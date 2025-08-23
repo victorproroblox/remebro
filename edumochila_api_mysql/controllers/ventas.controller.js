@@ -105,27 +105,32 @@ export async function store(req, res) {
  */
 export async function registrarPagoPaypal(req, res) {
   try {
+    // ⬇️ YA NO usamos req.user; tomamos de body o query
     const id_us = Number(req.body?.id_us ?? req.query?.id_us);
-    if (!id_us) return res.status(422).json({ message: 'id_us es requerido y debe ser entero.' });
+    if (!Number.isInteger(id_us) || id_us <= 0) {
+      return res.status(422).json({ message: 'id_us es requerido y debe ser entero.' });
+    }
 
     const { order_id, id_pr, total } = req.body;
     if (!order_id || typeof order_id !== 'string') {
-      return res.status(422).json({ message: 'order_id es requerido.' });
+      return res.status(422).json({ message: 'order_id es requerido' });
     }
     if (!id_pr || !Number.isInteger(Number(id_pr))) {
-      return res.status(422).json({ message: 'id_pr requerido y entero.' });
+      return res.status(422).json({ message: 'id_pr requerido y entero' });
     }
     if (total === undefined || Number(total) < 0) {
-      return res.status(422).json({ message: 'total requerido y >= 0.' });
+      return res.status(422).json({ message: 'total requerido y >= 0' });
     }
 
-    // 0) Valida producto
-    const prod = await Producto.findByPk(id_pr, { attributes: ['id_pr', 'precio_pr', 'status_pr'] });
-    if (!prod || prod.status_pr !== 1) {
-      return res.status(404).json({ message: 'Producto inexistente o inactivo.' });
+    // Valida producto
+    const prod = await Producto.findByPk(id_pr, {
+      attributes: ['id_pr', 'precio_pr', 'status_pr'],
+    });
+    if (!prod || Number(prod.status_pr) !== 1) {
+      return res.status(404).json({ message: 'Producto inexistente o inactivo' });
     }
 
-    // 1) Token PayPal
+    // === PayPal: token ===
     const clientId = process.env.PAYPAL_CLIENT_ID;
     const secret   = process.env.PAYPAL_SECRET;
     const baseUrl  = (process.env.PAYPAL_MODE || 'sandbox') === 'live'
@@ -135,40 +140,35 @@ export async function registrarPagoPaypal(req, res) {
     const tokenResp = await axios.post(
       `${baseUrl}/v1/oauth2/token`,
       new URLSearchParams({ grant_type: 'client_credentials' }),
-      {
-        auth: { username: clientId, password: secret },
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      }
+      { auth: { username: clientId, password: secret } }
     );
     const accessToken = tokenResp.data?.access_token;
-    if (!accessToken) return res.status(502).json({ message: 'No se pudo autenticar con PayPal.' });
+    if (!accessToken) {
+      return res.status(502).json({ message: 'No se pudo autenticar con PayPal' });
+    }
 
-    // 2) Consulta orden
+    // === PayPal: orden ===
     const orderResp = await axios.get(`${baseUrl}/v2/checkout/orders/${order_id}`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
-
     const status   = orderResp.data?.status;
     const amount   = orderResp.data?.purchase_units?.[0]?.amount?.value;
     const currency = orderResp.data?.purchase_units?.[0]?.amount?.currency_code;
 
     if (status !== 'COMPLETED') {
-      return res.status(400).json({ message: 'Pago no completado.' });
+      return res.status(400).json({ message: 'Pago no completado' });
     }
-
-    // 3) Montos iguales (2 decimales)
-    const normalize2 = (n) => Number(n).toFixed(2);
+    const normalize2 = n => Number(n).toFixed(2);
     if (normalize2(amount) !== normalize2(total)) {
-      return res.status(400).json({ message: 'Monto no coincide.' });
+      return res.status(400).json({ message: 'Monto no coincide' });
     }
 
-    // 4) Registrar vía SP (o INSERT directo según tu diseño)
+    // === Registrar venta vía SP (o como lo tengas) ===
     const sql = `
       SET @out_id_ve := 0;
       CALL checkout_paypal(:p_id_us, :p_id_pr, :p_total, :p_order_id, @out_id_ve);
       SELECT @out_id_ve AS out_id_ve;
     `;
-
     const [rows] = await sequelize.query(sql, {
       replacements: {
         p_id_us: id_us,
@@ -190,7 +190,6 @@ export async function registrarPagoPaypal(req, res) {
     if (outIdVe) {
       venta = await Venta.findByPk(outIdVe);
     } else {
-      // idempotencia
       venta = await Venta.findOne({ where: { paypal_order_id: order_id } });
     }
 
@@ -200,14 +199,10 @@ export async function registrarPagoPaypal(req, res) {
       paypal: { order_id, status, amount, currency },
     });
   } catch (e) {
-    // Duplicado (si paypal_order_id es UNIQUE)
     if (e?.original?.code === 'ER_DUP_ENTRY' || e?.original?.errno === 1062) {
       const { order_id } = req.body || {};
       const venta = await Venta.findOne({ where: { paypal_order_id: order_id } });
-      return res.status(200).json({
-        message: 'Orden ya registrada (idempotente)',
-        venta,
-      });
+      return res.status(200).json({ message: 'Orden ya registrada (idempotente)', venta });
     }
     if (axios.isAxiosError(e)) {
       const code = e.response?.status || 500;
