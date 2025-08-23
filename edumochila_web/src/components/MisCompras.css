@@ -1,9 +1,9 @@
-/* src/pages/MisCompras.css */
+/* ====== MisCompras.css ====== */
 
 .miscompras-wrapper {
   min-height: calc(100vh - 64px);
   background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
-  padding: 100px 20px 40px; /* 👈 más espacio arriba (antes era 40px) */
+  padding: 100px 20px 40px; /* 👈 más espacio arriba para que no se tape */
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -19,49 +19,61 @@
 .miscompras-header h1 {
   font-size: 28px;
   font-weight: bold;
-  margin-bottom: 10px;
+  margin: 0 0 10px;
+  text-align: center;
 }
 
-.miscompras-list {
+.estado {
+  margin: 20px auto;
+  padding: 12px 18px;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 12px;
+  text-align: center;
+  font-size: 16px;
+}
+
+.estado-error {
+  color: #ff7b7b;
+}
+
+.compras-lista {
   max-width: 900px;
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 18px;
 }
 
 .compra-card {
   background: rgba(0, 0, 0, 0.55);
   border-radius: 14px;
   padding: 16px;
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: 80px 1fr auto;
   align-items: center;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
-}
-
-.compra-left {
-  display: flex;
   gap: 16px;
-  align-items: center;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
 }
 
-.compra-left img {
-  width: 72px;
-  height: 72px;
-  object-fit: cover;
+.compra-img {
+  width: 80px;
+  height: 80px;
+  object-fit: contain;
   border-radius: 10px;
+  background: #fff;
+  padding: 6px;
 }
 
 .compra-info h2 {
-  margin: 0;
   font-size: 20px;
-  font-weight: bold;
+  margin: 0 0 6px;
+  color: #fff;
 }
 
 .compra-info p {
-  margin: 4px 0;
+  margin: 2px 0;
   font-size: 14px;
+  color: #cfe7ee;
 }
 
 .compra-info a {
@@ -70,27 +82,30 @@
   font-weight: bold;
 }
 
-.compra-right {
-  text-align: right;
+.compra-info a:hover {
+  text-decoration: underline;
 }
 
 .compra-precio {
   font-size: 18px;
   font-weight: bold;
+  color: #fff;
   margin-bottom: 8px;
+  text-align: right;
 }
 
-.compra-right button {
+.compra-btn {
   background: transparent;
-  border: 1px solid #00cfff;
+  border: 1.5px solid #00cfff;
   color: #00cfff;
-  padding: 6px 10px;
-  border-radius: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
   cursor: pointer;
-  transition: all 0.2s;
+  font-size: 14px;
+  transition: 0.2s;
 }
 
-.compra-right button:hover {
+.compra-btn:hover {
   background: #00cfff;
   color: #fff;
 }
