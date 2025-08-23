@@ -15,7 +15,7 @@ import Checkout from './components/Checkout';
 import CompraExitosa from "./components/CompraExitosa";
 import MaestroHome from "./components/MaestroHome";
 import MaestroSalon from "./components/MaestroSalon";
-import MisCompras from "./pages/MisCompras";
+import MisCompras from "./components/MisCompras";
 
 
 function App() {
