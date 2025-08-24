@@ -1,3 +1,4 @@
+// src/screens/ScheduleScreen.jsx
 import React, { useState, useEffect, useRef } from "react";
 import {
   View,
@@ -9,14 +10,15 @@ import {
   Alert,
   TextInput,
   Modal,
-  Platform,
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+// 👇 Base de tu API Mongo (sin JWT)
 export const API_URL = "https://edumochila-api-mongo.onrender.com";
 
+/* Helper pequeño para fetch */
 async function fetchJSON(url, options = {}) {
   const res = await fetch(url, options);
   const data = await res.json().catch(() => ({}));
@@ -25,6 +27,7 @@ async function fetchJSON(url, options = {}) {
 
 export default function ScheduleScreen({ navigation }) {
   const dias = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"];
+
   const [diaSeleccionado, setDiaSeleccionado] = useState("Lunes");
   const [horario, setHorario] = useState([]);
   const [modalVisible, setModalVisible] = useState(false);
@@ -35,10 +38,11 @@ export default function ScheduleScreen({ navigation }) {
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  // Normaliza rangos "6:00 am - 7:00 am"
+  /* =============== utilidades de hora =============== */
+
+  // "6:00 am" o "06:00" → minutos
   const convertirHora = (hstr = "") => {
-    const s = hstr.trim();
-    // admite "6:00 am" o "06:00"
+    const s = (hstr || "").trim();
     const [time, maybeMer] = s.split(" ");
     let [h, m] = (time || "").split(":").map((n) => parseInt(n, 10));
     if (Number.isNaN(h) || Number.isNaN(m)) return NaN;
@@ -53,55 +57,27 @@ export default function ScheduleScreen({ navigation }) {
 
   const ordenarClases = (clases = []) => {
     return [...clases].sort((a, b) => {
-      const [aI, aF] = (a.hora || "").replace(/\u2013|\u2014/g, "-").split("-").map((p) => p.trim());
-      const [bI, bF] = (b.hora || "").replace(/\u2013|\u2014/g, "-").split("-").map((p) => p.trim());
-      const aMin = convertirHora(aI);
-      const bMin = convertirHora(bI);
-      return aMin - bMin;
+      const normA = (a.hora || "").replace(/\u2013|\u2014/g, "-");
+      const normB = (b.hora || "").replace(/\u2013|\u2014/g, "-");
+      const [aI] = normA.split("-").map((p) => p.trim());
+      const [bI] = normB.split("-").map((p) => p.trim());
+      return convertirHora(aI) - convertirHora(bI);
     });
   };
 
-  const getProductoId = async () => {
-    // 1) AsyncStorage
-    let pid = await AsyncStorage.getItem("producto_id");
-    if (pid) return pid;
+  /* =============== producto_id (local) =============== */
 
-    // 2) API Mongo /api/productos/my
-    try {
-      const token = await AsyncStorage.getItem("token");
-      if (!token) return null;
-      const { ok, data } = await fetchJSON(`${API_URL}/api/productos/my`, {
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      if (ok && data?.producto_id) {
-        await AsyncStorage.setItem("producto_id", data.producto_id);
-        return data.producto_id;
-      }
-    } catch {}
-    return null;
+  // Usamos sólo AsyncStorage. Si no hay producto_id guardado, enviamos al registro.
+  const getProductoId = async () => {
+    const pid = await AsyncStorage.getItem("producto_id");
+    return pid || null;
   };
 
-  const cargarHorario = async (pid, diaKey) => {
-    const token = await AsyncStorage.getItem("token");
-    if (!token) {
-      Alert.alert("Sesión", "Inicia sesión de nuevo.");
-      navigation.replace("Login");
-      return;
-    }
+  /* =============== cargar horario =============== */
 
+  const cargarHorario = async (pid, diaKey) => {
     const { ok, data } = await fetchJSON(
-      `${API_URL}/api/horario/${encodeURIComponent(pid)}/${encodeURIComponent(diaKey)}`,
-      {
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-      }
+      `${API_URL}/api/horario/${encodeURIComponent(pid)}/${encodeURIComponent(diaKey)}`
     );
 
     if (ok && data && Array.isArray(data.clases)) {
@@ -110,6 +86,8 @@ export default function ScheduleScreen({ navigation }) {
       setHorario([]);
     }
   };
+
+  /* =============== efectos =============== */
 
   useEffect(() => {
     Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }).start();
@@ -128,25 +106,30 @@ export default function ScheduleScreen({ navigation }) {
 
   useEffect(() => {
     if (!productoId) return;
-    const diaKey = diaSeleccionado.toLowerCase(); // normaliza para API
+    const diaKey = diaSeleccionado.toLowerCase();
     cargarHorario(productoId, diaKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [diaSeleccionado, productoId]);
 
+  /* =============== agregar clase (POST) =============== */
+
   const agregarClase = async () => {
-    const horaNorm = hora.replace(/\u2013|\u2014/g, "-").trim();
+    const horaNorm = (hora || "").replace(/\u2013|\u2014/g, "-").trim();
 
     if (!horaNorm.includes("-")) {
       Alert.alert("Formato incorrecto", "Usa el formato: 6:00 am - 7:00 am");
       return;
     }
+
     const [inicioHoraStr, finHoraStr] = horaNorm.split("-").map((p) => p.trim());
     if (!inicioHoraStr || !finHoraStr) {
       Alert.alert("Hora inválida", "No se pudo dividir correctamente la hora.");
       return;
     }
+
     const inicioMin = convertirHora(inicioHoraStr);
     const finMin = convertirHora(finHoraStr);
+
     if (isNaN(inicioMin) || isNaN(finMin)) {
       Alert.alert("Hora inválida", "No se pudo interpretar el rango de hora.");
       return;
@@ -156,9 +139,10 @@ export default function ScheduleScreen({ navigation }) {
       return;
     }
 
-    // Conflictos
-    const hayTraslape = horario.some((clase) => {
-      const [eI, eF] = (clase.hora || "").replace(/\u2013|\u2014/g, "-").split("-").map((t) => t.trim());
+    // Sin traslapes
+    const hayTraslape = horario.some((c) => {
+      const norm = (c.hora || "").replace(/\u2013|\u2014/g, "-");
+      const [eI, eF] = norm.split("-").map((t) => t.trim());
       const eIMin = convertirHora(eI);
       const eFMin = convertirHora(eF);
       return inicioMin < eFMin && finMin > eIMin;
@@ -168,34 +152,23 @@ export default function ScheduleScreen({ navigation }) {
       return;
     }
 
-    const token = await AsyncStorage.getItem("token");
-    if (!token) {
-      Alert.alert("Sesión", "Inicia sesión de nuevo.");
-      navigation.replace("Login");
-      return;
-    }
-
     const payload = {
       producto_id: productoId,
       dia: diaSeleccionado.toLowerCase(),
       hora: horaNorm,
       materia: (materia || "").trim(),
-      materiales: (materiales || "").trim(), // el backend normaliza a array
+      materiales: (materiales || "").trim(), // el backend lo normaliza a array
     };
 
+    // IMPORTANTE: POST /clase sólo hace $push (sin $set de 'clases'), evitando conflictos.
     const { ok, data, status } = await fetchJSON(`${API_URL}/api/horario/clase`, {
       method: "POST",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
+      headers: { Accept: "application/json", "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
 
     if (ok) {
-      // refresca desde el servidor para mantener la fuente de verdad
-      await cargarHorario(productoId, payload.dia);
+      await cargarHorario(productoId, payload.dia); // refrescamos desde servidor
       setModalVisible(false);
       setHora("");
       setMateria("");
@@ -205,14 +178,9 @@ export default function ScheduleScreen({ navigation }) {
     }
   };
 
-  const eliminarClase = async (index) => {
-    const token = await AsyncStorage.getItem("token");
-    if (!token) {
-      Alert.alert("Sesión", "Inicia sesión de nuevo.");
-      navigation.replace("Login");
-      return;
-    }
+  /* =============== eliminar clase (PUT set array) =============== */
 
+  const eliminarClase = async (index) => {
     const actualizado = [...horario];
     actualizado.splice(index, 1);
 
@@ -226,13 +194,10 @@ export default function ScheduleScreen({ navigation }) {
       })),
     };
 
-    const { ok, data, status } = await fetchJSON(`${MONGO_API_URL}/api/horario`, {
+    // IMPORTANTE: aquí SÍ usamos PUT con $set del array completo (sin $push) para evitar conflicto.
+    const { ok, data, status } = await fetchJSON(`${API_URL}/api/horario`, {
       method: "PUT",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
+      headers: { Accept: "application/json", "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
 
@@ -243,6 +208,8 @@ export default function ScheduleScreen({ navigation }) {
       Alert.alert("Error", data?.error || `No se pudo actualizar (HTTP ${status})`);
     }
   };
+
+  /* =============== UI =============== */
 
   return (
     <LinearGradient colors={["#0f2027", "#203a43", "#2c5364"]} style={styles.container}>
@@ -264,7 +231,7 @@ export default function ScheduleScreen({ navigation }) {
 
         <FlatList
           data={horario}
-          keyExtractor={(item, index) => index.toString()}
+          keyExtractor={(_, index) => index.toString()}
           ListEmptyComponent={<Text style={styles.emptyText}>No hay clases asignadas</Text>}
           renderItem={({ item, index }) => (
             <View style={styles.claseItem}>
@@ -288,10 +255,12 @@ export default function ScheduleScreen({ navigation }) {
         </TouchableOpacity>
       </Animated.View>
 
+      {/* Modal agregar clase */}
       <Modal visible={modalVisible} animationType="slide" transparent>
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Nueva clase para {diaSeleccionado}</Text>
+
             <TextInput
               style={styles.input}
               placeholder="Ej: 6:00 am - 7:00 am"
@@ -300,6 +269,7 @@ export default function ScheduleScreen({ navigation }) {
               onChangeText={setHora}
             />
             <Text style={styles.helperText}>Formato: hora inicio - hora fin (ej. 6:00 am - 7:00 am)</Text>
+
             <TextInput
               style={styles.input}
               placeholder="Materia"
@@ -319,7 +289,6 @@ export default function ScheduleScreen({ navigation }) {
               <TouchableOpacity style={styles.agregarButton} onPress={agregarClase}>
                 <Text style={styles.agregarTexto}>Guardar</Text>
               </TouchableOpacity>
-
               <TouchableOpacity
                 style={[styles.agregarButton, { backgroundColor: "#555" }]}
                 onPress={() => setModalVisible(false)}
@@ -331,6 +300,7 @@ export default function ScheduleScreen({ navigation }) {
         </View>
       </Modal>
 
+      {/* Bottom menu (navegación simple) */}
       <View style={styles.bottomMenu}>
         <TouchableOpacity style={styles.menuItem} onPress={() => navigation.replace("Home")}>
           <Ionicons name="home-outline" size={24} color="#00cfff" />
@@ -361,39 +331,14 @@ export default function ScheduleScreen({ navigation }) {
   );
 }
 
+/* ====================== estilos ====================== */
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 30,
-    justifyContent: "space-between",
-  },
-  card: {
-    backgroundColor: "rgba(255,255,255,0.06)",
-    borderRadius: 25,
-    padding: 25,
-    flex: 1,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: "bold",
-    color: "#00cfff",
-    textAlign: "center",
-    marginBottom: 15,
-  },
-  diaSelector: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 10,
-    flexWrap: "wrap",
-  },
-  diaBoton: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    backgroundColor: "#333",
-    borderRadius: 20,
-    marginVertical: 4,
-  },
+  container: { flex: 1, paddingHorizontal: 20, paddingTop: 30, justifyContent: "space-between" },
+  card: { backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 25, padding: 25, flex: 1 },
+  title: { fontSize: 22, fontWeight: "bold", color: "#00cfff", textAlign: "center", marginBottom: 15 },
+  diaSelector: { flexDirection: "row", justifyContent: "space-between", marginBottom: 10, flexWrap: "wrap" },
+  diaBoton: { paddingVertical: 8, paddingHorizontal: 12, backgroundColor: "#333", borderRadius: 20, marginVertical: 4 },
   diaBotonActivo: { backgroundColor: "#00cfff" },
   diaTexto: { color: "#ccc", fontSize: 13 },
   diaTextoActivo: { color: "#fff", fontWeight: "bold" },
@@ -418,12 +363,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  agregarTexto: {
-    color: "white",
-    fontWeight: "bold",
-    fontSize: 15,
-    marginLeft: 8,
-  },
+  agregarTexto: { color: "white", fontWeight: "bold", fontSize: 15, marginLeft: 8 },
   bottomMenu: {
     flexDirection: "row",
     backgroundColor: "#1a1a1a",
@@ -441,44 +381,10 @@ const styles = StyleSheet.create({
   },
   menuItem: { alignItems: "center", justifyContent: "center" },
   menuText: { marginTop: 4, color: "#00cfff", fontSize: 13 },
-  emptyText: {
-    color: "#aaa",
-    fontStyle: "italic",
-    textAlign: "center",
-    marginTop: 10,
-  },
-  modalContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.6)",
-  },
-  modalContent: {
-    backgroundColor: "#111",
-    borderRadius: 20,
-    padding: 20,
-    width: "90%",
-  },
-  modalTitle: {
-    color: "#00cfff",
-    fontSize: 18,
-    fontWeight: "bold",
-    marginBottom: 15,
-    textAlign: "center",
-  },
-  input: {
-    backgroundColor: "#222",
-    color: "white",
-    borderRadius: 10,
-    padding: 10,
-    marginBottom: 10,
-    fontSize: 14,
-  },
-
-  helperText: {
-    color: "#aaa",
-    fontSize: 12,
-    marginBottom: 10,
-    marginLeft: 5,
-  },
+  emptyText: { color: "#aaa", fontStyle: "italic", textAlign: "center", marginTop: 10 },
+  modalContainer: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "rgba(0,0,0,0.6)" },
+  modalContent: { backgroundColor: "#111", borderRadius: 20, padding: 20, width: "90%" },
+  modalTitle: { color: "#00cfff", fontSize: 18, fontWeight: "bold", marginBottom: 15, textAlign: "center" },
+  input: { backgroundColor: "#222", color: "white", borderRadius: 10, padding: 10, marginBottom: 10, fontSize: 14 },
+  helperText: { color: "#aaa", fontSize: 12, marginBottom: 10, marginLeft: 5 },
 });

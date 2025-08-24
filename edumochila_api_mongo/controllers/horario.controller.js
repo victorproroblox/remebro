@@ -1,6 +1,7 @@
 import Horario from '../models/Horario.js';
 
 // POST /api/horario/clase
+// POST /api/horario/clase
 export async function agregarClase(req, res) {
   try {
     const { producto_id, dia, hora, materia, materiales } = req.body;
@@ -21,15 +22,15 @@ export async function agregarClase(req, res) {
           .map((s) => s.trim())
           .filter(Boolean);
 
-    // SOLO $push (+$setOnInsert). Nada de $set de "clases" aquí para evitar conflictos.
-    const doc = await Horario.findOneAndUpdate(
+    // ✅ No uses $setOnInsert sobre "clases" porque entra en conflicto con $push
+    await Horario.updateOne(
       { producto_id, dia: diaKey },
-      {
-        $setOnInsert: { clases: [] },
-        $push: { clases: { hora, materia, materiales: mats } },
-      },
-      { upsert: true, new: true }
+      { $push: { clases: { hora, materia, materiales: mats } } },
+      { upsert: true, setDefaultsOnInsert: true }
     );
+
+    // Devuelve el documento actualizado
+    const doc = await Horario.findOne({ producto_id, dia: diaKey }).lean();
 
     return res.json({ message: 'Clase guardada', horario: doc });
   } catch (e) {
@@ -38,6 +39,7 @@ export async function agregarClase(req, res) {
       .json({ message: 'Error guardando clase: ' + e.message });
   }
 }
+
 
 // PUT /api/horario
 export async function reemplazarClases(req, res) {
