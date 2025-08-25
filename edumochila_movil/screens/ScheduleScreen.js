@@ -31,13 +31,6 @@ const MATERIAL_TAGS = [
   "Libro",
   "Libreta",
   "Calculadora",
-  "Tablet",
-  "Lapicera",
-  "Colores",
-  "Uniforme",
-  "Cuaderno",
-  "Compás",
-  "Regla",
 ];
 
 export default function ScheduleScreen({ navigation }) {

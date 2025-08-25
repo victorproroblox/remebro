@@ -1,3 +1,4 @@
+// src/screens/MonitorProductScreen.jsx
 import React, { useEffect, useRef, useState } from "react";
 import {
   View,
@@ -9,6 +10,8 @@ import {
   Dimensions,
   Platform,
   Alert,
+  Modal,
+  TextInput,
 } from "react-native";
 import MapView, { Marker, Polyline } from "react-native-maps";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -37,32 +40,15 @@ async function fetchJSON(url, options = {}) {
   return { ok: res.ok, status: res.status, data };
 }
 
-// DEBUG: para ver qué hay guardado
-async function dumpTokens() {
-  try {
-    const keys = await AsyncStorage.getAllKeys();
-    const entries = await AsyncStorage.multiGet(keys);
-    console.log("ASYNCSTORAGE →", Object.fromEntries(entries));
-  } catch (e) {}
-}
-
-/** ==== Opción A: asegurar mongo_token sin exchange ==== */
 async function bootstrapAuth() {
   const existingMongo = await AsyncStorage.getItem("mongo_token");
-  if (existingMongo) {
-    console.log("BOOTSTRAP → mongo_token ya existía");
-    return;
-  }
+  if (existingMongo) return;
   const mysqlToken =
     (await AsyncStorage.getItem("mysql_token")) ||
-    (await AsyncStorage.getItem("token")); // fallback genérico
+    (await AsyncStorage.getItem("token"));
   if (mysqlToken) {
     await AsyncStorage.setItem("mongo_token", mysqlToken);
-    console.log("BOOTSTRAP → mongo_token seteado desde mysql_token/token");
-  } else {
-    console.log("BOOTSTRAP → no hay mysql_token ni token");
   }
-  await dumpTokens();
 }
 
 async function ensureMongoTokenOnce() {
@@ -80,17 +66,11 @@ async function ensureMongoTokenOnce() {
 
 async function authHeadersForMongo() {
   const token = await AsyncStorage.getItem("mongo_token");
-  const headers = {
+  return {
     Accept: "application/json",
     "Content-Type": "application/json",
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
-  // DEBUG: ver si realmente mandamos Authorization
-  console.log(
-    "HDR MONGO →",
-    headers.Authorization ? headers.Authorization : "SIN AUTH"
-  );
-  return headers;
 }
 
 /** ====== COMPONENTE ====== */
@@ -104,12 +84,30 @@ export default function MonitorProductScreen({ navigation }) {
   const [fechaSeleccionada, setFechaSeleccionada] = useState(new Date());
   const [mostrarPicker, setMostrarPicker] = useState(false);
 
-  const warnedRef = useRef(false); // evitar múltiples alerts
+  // ===== límite de peso =====
+  const [limiteModal, setLimiteModal] = useState(false);
+  const [kgSel, setKgSel] = useState(0); // 0..5
+  const [gSel, setGSel] = useState(0); // 0..900 (step 50)
+  const [limiteGramos, setLimiteGramos] = useState(null); // null o número en gramos
+
+  // evitar alertas repetidas
+  const warnedRef = useRef(false);
+  const ultimoEnviadoRef = useRef({ fecha: null, valorGr: null });
 
   useEffect(() => {
     Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }).start();
-    // Copia token si hace falta (mysql_token/token -> mongo_token)
     bootstrapAuth();
+    (async () => {
+      const stored = await AsyncStorage.getItem("peso_limit_grams");
+      if (stored) {
+        const grams = parseInt(stored, 10);
+        setLimiteGramos(grams);
+        const kg = Math.min(5, Math.floor(grams / 1000));
+        const g = grams % 1000;
+        setKgSel(kg);
+        setGSel(Math.min(900, Math.round(g / 50) * 50));
+      }
+    })();
   }, []);
 
   /** Obtiene y cachea el producto_id del usuario */
@@ -149,16 +147,38 @@ export default function MonitorProductScreen({ navigation }) {
     return null;
   };
 
-  /** Carga pesos y ubicaciones por fecha desde la API de Mongo */
+  /** Envía alerta/ mensaje cuando el límite se excede */
+  const enviarAlertaPeso = async (producto_id, pesoKg, limiteKg) => {
+    try {
+      const body = {
+        tipo: "peso_limite",
+        producto_id,
+        texto: `Límite de peso excedido. Peso: ${pesoKg.toFixed(2)} kg`,
+        peso_kg: Number(pesoKg),
+        limite_kg: Number(limiteKg),
+        fecha: new Date().toISOString(),
+      };
+
+      const { ok, status, data } = await fetchJSON(`${API_MONGO}/api/mensajes`, {
+        method: "POST",
+        headers: await authHeadersForMongo(),
+        body: JSON.stringify(body),
+      });
+
+      if (!ok) {
+        console.log("Error enviando mensaje de límite:", status, data);
+      }
+    } catch (e) {
+      console.log("Excepción enviando mensaje:", e?.message);
+    }
+  };
+
+  /** Carga pesos/ubicaciones por fecha y verifica el límite */
   const cargarDatos = async (fecha) => {
-    // Asegura (o crea) mongo_token sin expulsar al usuario
     const hasToken = await ensureMongoTokenOnce();
     if (!hasToken && !warnedRef.current) {
       warnedRef.current = true;
-      Alert.alert(
-        "Sesión",
-        "No hay token válido. Inicia sesión para ver datos protegidos."
-      );
+      Alert.alert("Sesión", "No hay token válido. Inicia sesión para ver datos protegidos.");
     }
 
     const producto_id = await getProductoId();
@@ -173,7 +193,7 @@ export default function MonitorProductScreen({ navigation }) {
     }
 
     try {
-      // --- Pesos por fecha ---
+      // ---- Pesos por fecha ----
       {
         const { ok, data, status } = await fetchJSON(
           `${API_MONGO}/api/pesos/${encodeURIComponent(
@@ -181,10 +201,12 @@ export default function MonitorProductScreen({ navigation }) {
           )}?fecha=${encodeURIComponent(fechaStr)}`,
           { headers: await authHeadersForMongo() }
         );
+
         if (status === 401 && !warnedRef.current) {
           warnedRef.current = true;
           Alert.alert("Permisos", "Tu sesión de Mongo no es válida (401).");
         }
+
         if (ok && Array.isArray(data) && data.length > 0) {
           const etiquetas = data.map((p) => {
             const f = new Date(p.fecha);
@@ -194,14 +216,39 @@ export default function MonitorProductScreen({ navigation }) {
           });
           const pesos = data.map((p) => Number(p.peso));
           setDatosGrafica({ labels: etiquetas, data: pesos });
-          setPesoActual(pesos[pesos.length - 1]);
+
+          const ultimoKg = pesos[pesos.length - 1];
+          setPesoActual(ultimoKg);
+
+          // ===== Verificar límite (si está configurado) =====
+          if (limiteGramos != null) {
+            const limiteKg = limiteGramos / 1000;
+            const actualGr = Math.round(Number(ultimoKg || 0) * 1000);
+
+            const keyDia = fechaStr;
+            if (
+              actualGr > limiteGramos &&
+              !(
+                ultimoEnviadoRef.current.fecha === keyDia &&
+                ultimoEnviadoRef.current.valorGr === actualGr
+              )
+            ) {
+              await enviarAlertaPeso(producto_id, ultimoKg, limiteKg);
+              ultimoEnviadoRef.current = { fecha: keyDia, valorGr: actualGr };
+              await AsyncStorage.setItem(
+                "last_peso_alert_ts",
+                String(Date.now())
+              );
+              Alert.alert("Alerta", `Límite excedido. Peso: ${ultimoKg} kg`);
+            }
+          }
         } else {
           setDatosGrafica({ labels: [], data: [] });
           setPesoActual(null);
         }
       }
 
-      // --- Ubicaciones por fecha ---
+      // ---- Ubicaciones por fecha ----
       {
         const { ok, data, status } = await fetchJSON(
           `${API_MONGO}/api/ubicaciones/${encodeURIComponent(
@@ -242,7 +289,50 @@ export default function MonitorProductScreen({ navigation }) {
   useEffect(() => {
     cargarDatos(fechaSeleccionada);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fechaSeleccionada]);
+  }, [fechaSeleccionada, limiteGramos]);
+
+  /** ===== UI selector de límite ===== */
+  const KG_OPTS = [0, 1, 2, 3, 4, 5];
+  const STEP_G = 50; // tamaño de paso en gramos
+
+  // normaliza gramos escritos a mano
+  const normalizeGrams = (val) => {
+    let n = parseInt(String(val).replace(/[^\d]/g, ""), 10);
+    if (Number.isNaN(n)) n = 0;
+    n = Math.max(0, Math.min(900, n));
+    // redondea al múltiplo más cercano del paso
+    n = Math.round(n / STEP_G) * STEP_G;
+    return n;
+  };
+
+  const incG = () => {
+    if (kgSel === 5) return; // 5 kg -> g bloqueado en 0
+    setGSel((prev) => Math.min(900, prev + STEP_G));
+  };
+  const decG = () => setGSel((prev) => Math.max(0, prev - STEP_G));
+
+  const onKgPress = (k) => {
+    setKgSel(k);
+    // si top 5 kg, fuerza 0 g
+    if (k === 5) setGSel(0);
+  };
+
+  const guardarLimite = async () => {
+    // si 5 kg, gramos debe ser 0
+    const grams = kgSel * 1000 + (kgSel === 5 ? 0 : gSel);
+    if (grams > 5000) {
+      return Alert.alert("Límite", "El máximo permitido es 5,000 g (5 kg).");
+    }
+    setLimiteGramos(grams);
+    await AsyncStorage.setItem("peso_limit_grams", String(grams));
+    setLimiteModal(false);
+  };
+
+  const limpiarLimite = async () => {
+    setLimiteGramos(null);
+    await AsyncStorage.removeItem("peso_limit_grams");
+    setLimiteModal(false);
+  };
 
   return (
     <LinearGradient colors={["#0f2027", "#203a43", "#2c5364"]} style={styles.container}>
@@ -268,13 +358,42 @@ export default function MonitorProductScreen({ navigation }) {
             />
           )}
 
-          <View style={styles.section}>
+          {/* Peso actual + Límite */}
+          <View style={[styles.section, { gap: 8 }]}>
             <Text style={styles.label}>Peso actual:</Text>
             <Text style={styles.pesoActual}>
               {pesoActual !== null && pesoActual !== undefined ? `${pesoActual} kg` : "Sin datos"}
             </Text>
+
+            <View style={styles.limiteRow}>
+              <Text style={styles.limiteText}>
+                Límite:{" "}
+                {limiteGramos == null
+                  ? "—"
+                  : `${Math.floor(limiteGramos / 1000)} kg ${limiteGramos % 1000} g`}
+              </Text>
+              <TouchableOpacity
+                style={styles.limiteBtn}
+                onPress={() => {
+                  if (limiteGramos != null) {
+                    const kg = Math.min(5, Math.floor(limiteGramos / 1000));
+                    const g = limiteGramos % 1000;
+                    setKgSel(kg);
+                    setGSel(kg === 5 ? 0 : Math.min(900, Math.round(g / STEP_G) * STEP_G));
+                  } else {
+                    setKgSel(0);
+                    setGSel(0);
+                  }
+                  setLimiteModal(true);
+                }}
+              >
+                <Ionicons name="speedometer-outline" size={16} color="#fff" />
+                <Text style={{ color: "#fff", marginLeft: 6, fontWeight: "bold" }}>Definir límite</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
+          {/* Gráfica */}
           <View style={styles.section}>
             <Text style={styles.label}>Peso diario</Text>
             {datosGrafica.data && datosGrafica.data.length > 0 ? (
@@ -303,11 +422,13 @@ export default function MonitorProductScreen({ navigation }) {
             )}
           </View>
 
+          {/* Ubicación */}
           <View style={styles.section}>
             <Text style={styles.label}>Última ubicación GPS:</Text>
             <Text style={styles.pesoActual}>{ubicacion || "Sin datos de GPS"}</Text>
           </View>
 
+          {/* Recorrido */}
           <View style={styles.section}>
             <Text style={styles.label}>Recorrido GPS</Text>
             {recorrido.length > 0 ? (
@@ -344,6 +465,104 @@ export default function MonitorProductScreen({ navigation }) {
         </Animated.View>
       </ScrollView>
 
+      {/* Modal selector de límite */}
+      <Modal visible={limiteModal} animationType="fade" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Definir límite de peso</Text>
+
+            <View style={styles.selectorRow}>
+              {/* KILOS */}
+              <View style={{ alignItems: "center" }}>
+                <Text style={styles.selectorLabel}>kg</Text>
+                <View style={styles.chipsRow}>
+                  {KG_OPTS.map((k) => (
+                    <TouchableOpacity
+                      key={k}
+                      style={[styles.chip, kgSel === k && styles.chipActive]}
+                      onPress={() => onKgPress(k)}
+                    >
+                      <Text style={[styles.chipText, kgSel === k && styles.chipTextActive]}>{k}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              <Text style={styles.separator}>—</Text>
+
+              {/* GRAMOS con stepper + input */}
+              <View style={{ alignItems: "center", width: 150 }}>
+                <Text style={styles.selectorLabel}>g</Text>
+
+                <View style={styles.stepperRow}>
+                  <TouchableOpacity
+                    style={[styles.stepBtn, { opacity: gSel <= 0 ? 0.5 : 1 }]}
+                    onPress={decG}
+                    disabled={gSel <= 0}
+                  >
+                    <Ionicons name="remove" size={18} color="#fff" />
+                  </TouchableOpacity>
+
+                  <TextInput
+                    style={styles.gramInput}
+                    keyboardType="numeric"
+                    value={String(gSel)}
+                    onChangeText={(t) => {
+                      if (kgSel === 5) {
+                        setGSel(0);
+                        return;
+                      }
+                      setGSel(normalizeGrams(t));
+                    }}
+                    editable={kgSel !== 5}
+                  />
+
+                  <TouchableOpacity
+                    style={[styles.stepBtn, { opacity: kgSel === 5 || gSel >= 900 ? 0.5 : 1 }]}
+                    onPress={incG}
+                    disabled={kgSel === 5 || gSel >= 900}
+                  >
+                    <Ionicons name="add" size={18} color="#fff" />
+                  </TouchableOpacity>
+                </View>
+
+                <Text style={styles.helperG}>
+                  {kgSel === 5 ? "Con 5 kg los gramos deben ser 0" : "Paso de 50 g (0–900)"}
+                </Text>
+              </View>
+            </View>
+
+            <Text style={styles.previewText}>
+              Límite seleccionado: {kgSel} kg {kgSel === 5 ? 0 : gSel} g
+            </Text>
+
+            <View style={styles.actionsRow}>
+              <TouchableOpacity style={[styles.limiteBtn, { backgroundColor: "#00cfff" }]} onPress={guardarLimite}>
+                <Ionicons name="save-outline" size={16} color="#fff" />
+                <Text style={{ color: "#fff", marginLeft: 6, fontWeight: "bold" }}>Guardar</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.limiteBtn, { backgroundColor: "#555" }]}
+                onPress={() => setLimiteModal(false)}
+              >
+                <Ionicons name="close-outline" size={18} color="#fff" />
+                <Text style={{ color: "#fff", marginLeft: 6, fontWeight: "bold" }}>Cancelar</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.limiteBtn, { backgroundColor: "#d9534f" }]}
+                onPress={limpiarLimite}
+              >
+                <Ionicons name="trash-outline" size={18} color="#fff" />
+                <Text style={{ color: "#fff", marginLeft: 6, fontWeight: "bold" }}>Quitar límite</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Bottom menu */}
       <View style={styles.bottomMenu}>
         <TouchableOpacity style={styles.menuItem} onPress={() => navigation.replace("Home")}>
           <Ionicons name="home-outline" size={24} color="#00cfff" />
@@ -391,6 +610,103 @@ const styles = StyleSheet.create({
   pesoActual: { color: "white", fontSize: 22, fontWeight: "bold" },
   placeholderText: { color: "#888", fontSize: 14 },
   map: { width: "100%", height: 180, borderRadius: 15 },
+
+  // fecha
+  fechaBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#00cfff",
+    borderRadius: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    marginBottom: 20,
+  },
+  fechaText: { color: "white", fontSize: 14, marginLeft: 8 },
+
+  // límite
+  limiteRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  limiteText: { color: "#ccc", fontSize: 14 },
+  limiteBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#00a3c4",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+  },
+
+  // modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 20,
+  },
+  modalCard: {
+    width: "100%",
+    backgroundColor: "#111",
+    borderRadius: 16,
+    padding: 18,
+  },
+  modalTitle: { color: "#00cfff", fontWeight: "bold", fontSize: 18, textAlign: "center", marginBottom: 12 },
+
+  selectorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-evenly",
+    marginBottom: 10,
+  },
+  selectorLabel: { color: "#9ad4e3", fontSize: 13, marginBottom: 6 },
+
+  chipsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    maxWidth: 220,
+    justifyContent: "center",
+  },
+  chip: { backgroundColor: "#222", borderRadius: 14, paddingVertical: 6, paddingHorizontal: 10 },
+  chipActive: { backgroundColor: "#00cfff" },
+  chipText: { color: "#ddd", fontSize: 14 },
+  chipTextActive: { color: "#fff", fontWeight: "bold" },
+
+  separator: { color: "#ccc", fontSize: 28, marginHorizontal: 6 },
+
+  // stepper gramos
+  stepperRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  stepBtn: {
+    backgroundColor: "#00a3c4",
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  gramInput: {
+    backgroundColor: "#222",
+    color: "#fff",
+    borderRadius: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    minWidth: 70,
+    textAlign: "center",
+    fontSize: 16,
+  },
+  helperG: { color: "#999", fontSize: 11, marginTop: 6 },
+
+  previewText: { color: "#ddd", textAlign: "center", marginVertical: 8 },
+
+  actionsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 10,
+    gap: 10,
+  },
+
+  // bottom nav
   bottomMenu: {
     flexDirection: "row",
     backgroundColor: "#1a1a1a",
@@ -408,14 +724,4 @@ const styles = StyleSheet.create({
   },
   menuItem: { alignItems: "center", justifyContent: "center" },
   menuText: { marginTop: 4, color: "#00cfff", fontSize: 13 },
-  fechaBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#00cfff",
-    borderRadius: 20,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    marginBottom: 20,
-  },
-  fechaText: { color: "white", fontSize: 14, marginLeft: 8 },
 });
