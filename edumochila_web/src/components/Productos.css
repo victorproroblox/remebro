@@ -1,180 +1,206 @@
-/* Estilos generales del dashboard */
-.productos-wrapper {
-  padding: 30px;
-  background: linear-gradient(to bottom, #0f2027, #203a43, #2c5364);
-  min-height: 100vh;
-  color: #fff;
-  font-family: 'Segoe UI', sans-serif;
+:root{
+  /* misma paleta azul que el dashboard */
+  --brand:#1e88e5;
+  --brand-2:#1565c0;
+  --bg:#0b1620;
+  --bg-2:#0f1e2b;
+  --glass: rgba(255,255,255,0.08);
+  --stroke: rgba(255,255,255,0.18);
+  --text:#eaf2ff;
+  --muted:#a9b4c6;
+  --shadow: 0 12px 30px rgba(0,0,0,.35);
+  --radius: 16px;
 }
 
-.productos-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 25px;
+.prods{
+  min-height: 100dvh;
+  color: var(--text);
+  background:
+    radial-gradient(960px 560px at 12% -8%, rgba(30,136,229,.15), transparent 60%),
+    radial-gradient(820px 520px at 92% 8%, rgba(30,136,229,.08), transparent 55%),
+    linear-gradient(180deg, var(--bg), var(--bg-2) 55%);
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 18px;
 }
 
-.productos-title {
-  font-size: 28px;
-  font-weight: bold;
-  color: #00cfff;
+/* Topbar */
+.prods__topbar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding: 18px clamp(16px, 4vw, 36px);
+  border-bottom: 1px solid var(--stroke);
+  backdrop-filter: blur(10px);
+  background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,0));
+}
+.prods__title h1{
+  margin:0; font-size: clamp(18px, 2.2vw, 24px); font-weight:700;
+}
+.prods__title p{
+  margin:4px 0 0; color: var(--muted); font-size: 14px;
+}
+.prods__actions{display:flex; gap:10px; flex-wrap:wrap;}
+
+.btn{
+  display:inline-flex; align-items:center; justify-content:center;
+  gap:8px;
+  padding:10px 14px;
+  border-radius:10px;
+  border:1px solid var(--stroke);
+  background: var(--glass);
+  color: var(--text);
+  transition: .18s ease;
+  white-space: nowrap;
+}
+.btn:hover{transform: translateY(-1px); border-color: rgba(255,255,255,.35);}
+.btn--primary{
+  background: linear-gradient(135deg, var(--brand), var(--brand-2));
+  border-color: transparent;
+}
+.btn--ghost{}
+.btn.mini{
+  padding:6px 10px; font-size: 13px; border-radius: 8px;
+}
+.btn.success{
+  background: linear-gradient(135deg, #1db954, #0f8f3f);
+  border-color: transparent;
+}
+.btn.danger{
+  background: linear-gradient(135deg, #ef5350, #c62828);
+  border-color: transparent;
 }
 
-.btn-agregar {
-  background: linear-gradient(90deg, #00cfff, #00aacc);
-  color: white;
-  border: none;
-  padding: 12px 22px;
-  font-size: 15px;
-  border-radius: 25px;
-  cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s;
+/* Contenido / tabla */
+.prods__content{
+  padding: 0 clamp(16px, 4vw, 36px) 24px;
 }
 
-.btn-agregar:hover {
-  transform: scale(1.05);
-  box-shadow: 0 0 10px rgba(0, 207, 255, 0.6);
-}
-
-/* Tabla */
-.productos-tabla {
-  width: 100%;
-  border-collapse: collapse;
-  background-color: #1c1c1c;
-  border-radius: 10px;
+.prods__tableWrap{
+  border:1px solid var(--stroke);
+  background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
   overflow: hidden;
-  box-shadow: 0 4px 8px rgba(0,0,0,0.3);
 }
 
-.productos-tabla th, .productos-tabla td {
-  padding: 15px;
-  text-align: left;
-  border-bottom: 1px solid #333;
+.prods__table{
+  width:100%;
+  border-collapse:separate;
+  border-spacing:0;
 }
 
-.productos-tabla th {
-  background-color: #2c2c2c;
-  color: #00cfff;
-  font-size: 15px;
-  text-transform: uppercase;
+.prods__table thead th{
+  position: sticky; top: 0;
+  background: rgba(10,17,27,.8);
+  backdrop-filter: blur(8px);
+  border-bottom:1px solid var(--stroke);
+  text-align:left;
+  font-weight:600;
+  padding:14px 14px;
+  font-size:14px;
+}
+.prods__table tbody td{
+  padding:12px 14px;
+  border-bottom:1px solid rgba(255,255,255,.06);
+  vertical-align: top;
+  font-size:14px;
+}
+.prods__table tbody tr:hover{
+  background: rgba(255,255,255,.04);
+}
+.th-right{text-align:right;}
+.td-actions{
+  display:flex; gap:8px; justify-content:flex-end; align-items:center;
+}
+.td-desc{
+  max-width: 420px;
+  color: var(--muted);
+  overflow:hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.productos-tabla td {
-  color: #ddd;
-  font-size: 14px;
+/* Pills de estatus */
+.pill{
+  display:inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size:12px;
+  border:1px solid var(--stroke);
+  background: rgba(255,255,255,.06);
+}
+.pill--ok{
+  border-color: rgba(56,142,60,.35);
+  background: linear-gradient(135deg, rgba(56,142,60,.28), rgba(56,142,60,.08));
+  color:#d5ffdb;
+}
+.pill--muted{
+  color:#bac6d6;
 }
 
-.productos-tabla tr:hover {
-  background-color: #2c2c2c;
-}
-
-/* Botones de acciones */
-.acciones {
-  display: flex;
-  gap: 12px;
-}
-
-.btn-editar,
-.btn-desactivar {
-  border: none;
-  padding: 8px 14px;
-  font-size: 13px;
-  border-radius: 20px;
-  font-weight: bold;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  color: #fff;
-}
-
-.btn-editar {
-  background: linear-gradient(90deg, #00cfff, #00aacc);
-}
-
-.btn-editar:hover {
-  background: linear-gradient(90deg, #00aacc, #0099aa);
-  transform: scale(1.05);
-}
-
-.btn-desactivar {
-  background: linear-gradient(90deg, #f55, #d33);
-}
-
-.btn-desactivar:hover {
-  background: linear-gradient(90deg, #d33, #c11);
-  transform: scale(1.05);
-}
-
-
-.formulario-producto {
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-  background-color: #1c1c1c;
-  padding: 25px;
+/* Estados */
+.estado{
+  padding: 16px;
+  border: 1px dashed var(--stroke);
   border-radius: 12px;
-  box-shadow: 0 0 10px rgba(0, 207, 255, 0.2);
+  color: var(--muted);
+  text-align:center;
+  background: rgba(255,255,255,.03);
+}
+.estado-error{
+  border: 1px solid rgba(239,83,80,.45);
+  color: #ffc7c5;
 }
 
-.formulario-producto input,
-.formulario-producto select {
-  padding: 12px;
-  border: none;
-  border-radius: 8px;
-  font-size: 15px;
-  background-color: #333;
-  color: white;
+/* ====== Formulario de producto (Editar/Agregar) ====== */
+
+.prods__form{
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0,1fr));
+  gap: 14px 16px;
+  border:1px solid var(--stroke);
+  background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+  border-radius: var(--radius);
+  padding: clamp(16px, 3vw, 24px);
+  box-shadow: var(--shadow);
 }
 
-.formulario-producto select option {
-  color: black;
+@media (max-width: 820px){
+  .prods__form{ grid-template-columns: 1fr; }
+  .prods__formActions{ justify-content: stretch; }
+  .prods__formActions .btn{ width: 100%; }
 }
 
-.btn-activar {
-  background-color: #4caf50;
-  color: white;
-  border: none;
-  padding: 6px 10px;
-  border-radius: 6px;
+.field{ display:flex; flex-direction:column; gap:8px; }
+.field label{
   font-size: 13px;
-  cursor: pointer;
-  transition: all 0.2s ease-in-out;
+  color: var(--muted);
 }
+.field input,
+.field select{
+  width: 100%;
+  outline: none;
+  border: 1px solid var(--stroke);
+  background: rgba(255,255,255,.06);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 10px 12px;
+  transition: .18s ease;
+}
+.field input::placeholder{ color: #9fb0c6; }
+.field input:focus,
+.field select:focus{
+  border-color: rgba(30,136,229,.5);
+  box-shadow: 0 0 0 3px rgba(30,136,229,.25);
+  background: rgba(255,255,255,.08);
+}
+.span-2{ grid-column: span 2; }
 
-.btn-activar:hover {
-  background-color: #3e8e41;
-}
-.productos-botones {
-  display: flex;
-  gap: 10px;
-}
-
-.btn-volver {
-  background-color: #555;
-  color: white;
-  border: none;
-  padding: 10px 18px;
-  font-size: 14px;
-  border-radius: 20px;
-  cursor: pointer;
-  transition: background 0.3s;
-}
-
-.btn-volver:hover {
-  background-color: #333;
-}
-
-.btn-volver {
-  background-color: #555;
-  color: white;
-  border: none;
-  padding: 10px 18px;
-  font-size: 14px;
-  border-radius: 20px;
-  cursor: pointer;
-  transition: background 0.3s;
-  margin-left: auto;
-}
-
-.btn-volver:hover {
-  background-color: #333;
+.prods__formActions{
+  grid-column: 1 / -1;
+  display:flex;
+  gap:10px;
+  justify-content:flex-end;
+  padding-top: 4px;
 }
