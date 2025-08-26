@@ -4,6 +4,11 @@ import { sequelize } from '../config/database.js';
 /**
  * GET /api/reportes/ventas
  * Query opcionales: from=YYYY-MM-DD, to=YYYY-MM-DD, limit, offset
+ * Respuesta:
+ * {
+ *   data: [...filas...],
+ *   totals: { count, total_importe }
+ * }
  */
 export async function reporteVentas(req, res) {
   try {
@@ -19,7 +24,8 @@ export async function reporteVentas(req, res) {
 
     const whereSQL = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
-    const sql = `
+    // Datos (paginados)
+    const sqlRows = `
       SELECT
         v.id_ve,
         v.fec_ve,
@@ -39,8 +45,19 @@ export async function reporteVentas(req, res) {
       LIMIT :limit OFFSET :offset
     `;
 
-    const rows = await sequelize.query(sql, { replacements: repl, type: sequelize.QueryTypes.SELECT });
-    return res.json(rows);
+    // Totales (mismos filtros, sin límite)
+    const sqlTotals = `
+      SELECT
+        COUNT(*)        AS count,
+        COALESCE(SUM(v.total_ve), 0) AS total_importe
+      FROM ventas v
+      ${whereSQL}
+    `;
+
+    const rows   = await sequelize.query(sqlRows,   { replacements: repl, type: sequelize.QueryTypes.SELECT });
+    const totals = (await sequelize.query(sqlTotals, { replacements: repl, type: sequelize.QueryTypes.SELECT }))[0];
+
+    return res.json({ data: rows, totals });
   } catch (e) {
     return res.status(500).json({ message: 'Error en el servidor: ' + e.message });
   }
@@ -48,10 +65,15 @@ export async function reporteVentas(req, res) {
 
 /**
  * GET /api/reportes/productos
+ * Respuesta:
+ * {
+ *   data: [...filas...],
+ *   totals: { total_activos, total_productos }
+ * }
  */
 export async function reporteProductos(_req, res) {
   try {
-    const sql = `
+    const sqlRows = `
       SELECT
         p.id_pr,
         p.nom_pr,
@@ -63,8 +85,18 @@ export async function reporteProductos(_req, res) {
       LEFT JOIN categorias c ON c.id_cat = p.id_cat
       ORDER BY p.id_pr DESC
     `;
-    const rows = await sequelize.query(sql, { type: sequelize.QueryTypes.SELECT });
-    return res.json(rows);
+
+    const sqlTotals = `
+      SELECT
+        COUNT(*) AS total_productos,
+        SUM(CASE WHEN p.status_pr = 1 THEN 1 ELSE 0 END) AS total_activos
+      FROM productos p
+    `;
+
+    const rows   = await sequelize.query(sqlRows,   { type: sequelize.QueryTypes.SELECT });
+    const totals = (await sequelize.query(sqlTotals, { type: sequelize.QueryTypes.SELECT }))[0];
+
+    return res.json({ data: rows, totals });
   } catch (e) {
     return res.status(500).json({ message: 'Error en el servidor: ' + e.message });
   }
@@ -72,11 +104,15 @@ export async function reporteProductos(_req, res) {
 
 /**
  * GET /api/reportes/usuarios
+ * Respuesta:
+ * {
+ *   data: [...filas...],
+ *   totals: { total_usuarios }
+ * }
  */
 export async function reporteUsuarios(_req, res) {
   try {
-    // Ajusta columnas a tu esquema real de "usuarios"
-    const sql = `
+    const sqlRows = `
       SELECT
         id_us,
         nom_us,
@@ -85,8 +121,16 @@ export async function reporteUsuarios(_req, res) {
       FROM usuarios
       ORDER BY id_us DESC
     `;
-    const rows = await sequelize.query(sql, { type: sequelize.QueryTypes.SELECT });
-    return res.json(rows);
+
+    const sqlTotals = `
+      SELECT COUNT(*) AS total_usuarios
+      FROM usuarios
+    `;
+
+    const rows   = await sequelize.query(sqlRows,   { type: sequelize.QueryTypes.SELECT });
+    const totals = (await sequelize.query(sqlTotals, { type: sequelize.QueryTypes.SELECT }))[0];
+
+    return res.json({ data: rows, totals });
   } catch (e) {
     return res.status(500).json({ message: 'Error en el servidor: ' + e.message });
   }
@@ -94,11 +138,15 @@ export async function reporteUsuarios(_req, res) {
 
 /**
  * (Opcional) GET /api/reportes/codigos
- * Útil si quieres listar también los códigos generados.
+ * Respuesta:
+ * {
+ *   data: [...filas...],
+ *   totals: { total_codigos }
+ * }
  */
 export async function reporteCodigos(_req, res) {
   try {
-    const sql = `
+    const sqlRows = `
       SELECT
         c.id,
         c.codigo,
@@ -114,8 +162,16 @@ export async function reporteCodigos(_req, res) {
       JOIN productos p ON p.id_pr = v.id_pr
       ORDER BY c.creado_en DESC
     `;
-    const rows = await sequelize.query(sql, { type: sequelize.QueryTypes.SELECT });
-    return res.json(rows);
+
+    const sqlTotals = `
+      SELECT COUNT(*) AS total_codigos
+      FROM codigos
+    `;
+
+    const rows   = await sequelize.query(sqlRows,   { type: sequelize.QueryTypes.SELECT });
+    const totals = (await sequelize.query(sqlTotals, { type: sequelize.QueryTypes.SELECT }))[0];
+
+    return res.json({ data: rows, totals });
   } catch (e) {
     return res.status(500).json({ message: 'Error en el servidor: ' + e.message });
   }

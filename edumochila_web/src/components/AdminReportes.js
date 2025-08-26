@@ -1,5 +1,6 @@
 // src/pages/AdminReportes.jsx
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import "./Reportes.css";
 import { API_URL } from "../env";
 
@@ -7,13 +8,20 @@ const TABS = [
   { key: "ventas", label: "Ventas" },
   { key: "productos", label: "Productos" },
   { key: "usuarios", label: "Usuarios" },
-  // Si quieres agregar "Códigos", descomenta:
   // { key: "codigos", label: "Códigos" },
 ];
 
+const money = (n) =>
+  new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(
+    Number(n || 0)
+  );
+
 export default function AdminReportes() {
+  const navigate = useNavigate();
+
   const [tab, setTab] = useState("ventas");
   const [rows, setRows] = useState([]);
+  const [meta, setMeta] = useState(null);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState("");
   const [filtros, setFiltros] = useState({ from: "", to: "" });
@@ -21,9 +29,9 @@ export default function AdminReportes() {
   const fetchData = async () => {
     setLoading(true);
     setMsg("");
+    setMeta(null);
     try {
       let url = `${API_URL}/api/reportes/${tab}`;
-      // Sólo ventas soporta filtros por fecha en este ejemplo
       if (tab === "ventas") {
         const qs = new URLSearchParams();
         if (filtros.from) qs.set("from", filtros.from);
@@ -33,9 +41,17 @@ export default function AdminReportes() {
       }
 
       const r = await fetch(url, { headers: { Accept: "application/json" } });
-      const data = await r.json().catch(() => (Array.isArray(rows) ? [] : []));
+      const data = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(data?.message || "No se pudo cargar el reporte.");
-      setRows(Array.isArray(data) ? data : []);
+
+      // Soportar ambos formatos: objeto {rows, meta} o arreglo plano (retrocompatibilidad)
+      if (Array.isArray(data)) {
+        setRows(data);
+        setMeta(null);
+      } else {
+        setRows(Array.isArray(data.rows) ? data.rows : []);
+        setMeta(data.meta || null);
+      }
     } catch (e) {
       setRows([]);
       setMsg(e.message || "Error al cargar reporte.");
@@ -56,6 +72,47 @@ export default function AdminReportes() {
 
   const onAplicar = () => fetchData();
 
+  const VentasFooter = () => {
+    const totalReg = meta?.total_rows ?? rows.length;
+    const totalSum = meta?.total_sum ?? rows.reduce((a, r) => a + Number(r.total_ve || 0), 0);
+    return (
+      <div className="rep-summary">
+        <div className="rep-summary-chip">
+          <strong>Registros:</strong> {totalReg}
+        </div>
+        <div className="rep-summary-chip rep-summary-total">
+          <strong>Total de ventas:</strong> {money(totalSum)}
+        </div>
+      </div>
+    );
+  };
+
+  const ProductosFooter = () => {
+    const totalReg = meta?.total_rows ?? rows.length;
+    const activos = meta?.total_activos ?? rows.filter((r) => Number(r.status_pr) === 1).length;
+    return (
+      <div className="rep-summary">
+        <div className="rep-summary-chip">
+          <strong>Total productos:</strong> {totalReg}
+        </div>
+        <div className="rep-summary-chip rep-summary-total">
+          <strong>Activos:</strong> {activos}
+        </div>
+      </div>
+    );
+  };
+
+  const UsuariosFooter = () => {
+    const totalReg = meta?.total_rows ?? rows.length;
+    return (
+      <div className="rep-summary">
+        <div className="rep-summary-chip rep-summary-total">
+          <strong>Total de usuarios:</strong> {totalReg}
+        </div>
+      </div>
+    );
+  };
+
   const renderTable = () => {
     if (loading) return <div className="estado">Cargando…</div>;
     if (msg) return <div className="estado estado-error">{msg}</div>;
@@ -64,116 +121,96 @@ export default function AdminReportes() {
     switch (tab) {
       case "ventas":
         return (
-          <table className="rep-table">
-            <thead>
-              <tr>
-                <th>ID Venta</th>
-                <th>Fecha</th>
-                <th>Total</th>
-                <th>Usuario</th>
-                <th>Email</th>
-                <th>Producto</th>
-                <th>Precio</th>
-                <th>OrderId</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.id_ve}>
-                  <td>{r.id_ve}</td>
-                  <td>{new Date(r.fec_ve).toLocaleString()}</td>
-                  <td>${Number(r.total_ve ?? 0).toFixed(2)}</td>
-                  <td>{r.nom_us}</td>
-                  <td>{r.email_us}</td>
-                  <td>{r.nom_pr}</td>
-                  <td>${Number(r.precio_pr ?? 0).toFixed(2)}</td>
-                  <td>{r.paypal_order_id || "-"}</td>
+          <>
+            <table className="rep-table">
+              <thead>
+                <tr>
+                  <th>ID Venta</th>
+                  <th>Fecha</th>
+                  <th>Total</th>
+                  <th>Usuario</th>
+                  <th>Email</th>
+                  <th>Producto</th>
+                  <th>Precio</th>
+                  <th>OrderId</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.id_ve}>
+                    <td>{r.id_ve}</td>
+                    <td>{new Date(r.fec_ve).toLocaleString()}</td>
+                    <td>{money(r.total_ve)}</td>
+                    <td>{r.nom_us}</td>
+                    <td>{r.email_us}</td>
+                    <td>{r.nom_pr}</td>
+                    <td>{money(r.precio_pr)}</td>
+                    <td>{r.paypal_order_id || "-"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <VentasFooter />
+          </>
         );
 
       case "productos":
         return (
-          <table className="rep-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Producto</th>
-                <th>Categoría</th>
-                <th>Precio</th>
-                <th>Stock</th>
-                <th>Estatus</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.id_pr}>
-                  <td>{r.id_pr}</td>
-                  <td>{r.nom_pr}</td>
-                  <td>{r.categoria || "-"}</td>
-                  <td>${Number(r.precio_pr ?? 0).toFixed(2)}</td>
-                  <td>{r.stock}</td>
-                  <td>{Number(r.status_pr) === 1 ? "Activo" : "Inactivo"}</td>
+          <>
+            <table className="rep-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Producto</th>
+                  <th>Categoría</th>
+                  <th>Precio</th>
+                  <th>Stock</th>
+                  <th>Estatus</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.id_pr}>
+                    <td>{r.id_pr}</td>
+                    <td>{r.nom_pr}</td>
+                    <td>{r.categoria || "-"}</td>
+                    <td>{money(r.precio_pr)}</td>
+                    <td>{r.stock}</td>
+                    <td>{Number(r.status_pr) === 1 ? "Activo" : "Inactivo"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <ProductosFooter />
+          </>
         );
 
       case "usuarios":
         return (
-          <table className="rep-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Usuario</th>
-                <th>Email</th>
-                <th>Tipo</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.id_us}>
-                  <td>{r.id_us}</td>
-                  <td>{r.nom_us}</td>
-                  <td>{r.email_us}</td>
-                  <td>{r.tip_us}</td>
+          <>
+            <table className="rep-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Usuario</th>
+                  <th>Email</th>
+                  <th>Tipo</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.id_us}>
+                    <td>{r.id_us}</td>
+                    <td>{r.nom_us}</td>
+                    <td>{r.email_us}</td>
+                    <td>{r.tip_us}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <UsuariosFooter />
+          </>
         );
-
-      // Si habilitas la pestaña "Códigos":
-      // case "codigos":
-      //   return (
-      //     <table className="rep-table">
-      //       <thead>
-      //         <tr>
-      //           <th>ID</th>
-      //           <th>Código</th>
-      //           <th>Creado</th>
-      //           <th>ID Venta</th>
-      //           <th>Usuario</th>
-      //           <th>Producto</th>
-      //         </tr>
-      //       </thead>
-      //       <tbody>
-      //         {rows.map((r) => (
-      //           <tr key={r.id}>
-      //             <td>{r.id}</td>
-      //             <td>{r.codigo}</td>
-      //             <td>{new Date(r.creado_en).toLocaleString()}</td>
-      //             <td>{r.id_ve}</td>
-      //             <td>{r.nom_us}</td>
-      //             <td>{r.nom_pr}</td>
-      //           </tr>
-      //         ))}
-      //       </tbody>
-      //     </table>
-      //   );
 
       default:
         return null;
@@ -183,7 +220,12 @@ export default function AdminReportes() {
   return (
     <main className="rep-wrapper">
       <div className="rep-header">
-        <h1>Reportes</h1>
+        <div className="rep-header-top">
+          <h1 className="rep-title">Reportes</h1>
+          <button className="rep-back" onClick={() => navigate("/dashboard")}>
+            ← Regresar
+          </button>
+        </div>
 
         <div className="rep-tabs">
           {TABS.map((t) => (
@@ -191,6 +233,7 @@ export default function AdminReportes() {
               key={t.key}
               className={`rep-tab ${tab === t.key ? "active" : ""}`}
               onClick={() => setTab(t.key)}
+              title={`Ver reporte de ${t.label.toLowerCase()}`}
             >
               {t.label}
             </button>
