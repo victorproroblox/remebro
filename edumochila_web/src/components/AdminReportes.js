@@ -1,5 +1,5 @@
 // src/pages/AdminReportes.jsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import "./Reportes.css";
 import { API_URL } from "../env";
 
@@ -7,23 +7,29 @@ const TABS = [
   { key: "ventas", label: "Ventas" },
   { key: "productos", label: "Productos" },
   { key: "usuarios", label: "Usuarios" },
-  // Si quieres agregar "Códigos", descomenta:
   // { key: "codigos", label: "Códigos" },
 ];
 
 export default function AdminReportes() {
   const [tab, setTab] = useState("ventas");
   const [rows, setRows] = useState([]);
+  const [totals, setTotals] = useState(null);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState("");
   const [filtros, setFiltros] = useState({ from: "", to: "" });
+
+  const baseUrl = useMemo(() => {
+    // Evita dobles "/" si API_URL ya viene con slash al final
+    return (API_URL || "").replace(/\/+$/, "");
+  }, []);
 
   const fetchData = async () => {
     setLoading(true);
     setMsg("");
     try {
-      let url = `${API_URL}/api/reportes/${tab}`;
-      // Sólo ventas soporta filtros por fecha en este ejemplo
+      let url = `${baseUrl}/api/reportes/${tab}`;
+
+      // Sólo ventas soporta filtros por fecha
       if (tab === "ventas") {
         const qs = new URLSearchParams();
         if (filtros.from) qs.set("from", filtros.from);
@@ -32,13 +38,29 @@ export default function AdminReportes() {
         if (str) url += `?${str}`;
       }
 
-      const r = await fetch(url, { headers: { Accept: "application/json" } });
-      const data = await r.json().catch(() => (Array.isArray(rows) ? [] : []));
-      if (!r.ok) throw new Error(data?.message || "No se pudo cargar el reporte.");
-      setRows(Array.isArray(data) ? data : []);
+      const r = await fetch(url, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+      });
+
+      // Intenta parsear JSON aunque no sea ok para sacar mensaje del server
+      const payload = await r.json().catch(() => null);
+
+      if (!r.ok) {
+        const serverMsg =
+          (payload && (payload.message || payload.error)) ||
+          `HTTP ${r.status}`;
+        throw new Error(serverMsg);
+      }
+
+      // El backend responde: { data: [...], totals: {...} }
+      const dataArray = Array.isArray(payload?.data) ? payload.data : [];
+      setRows(dataArray);
+      setTotals(payload?.totals ?? null);
     } catch (e) {
       setRows([]);
-      setMsg(e.message || "Error al cargar reporte.");
+      setTotals(null);
+      setMsg(e?.message || "Error al cargar reporte.");
     } finally {
       setLoading(false);
     }
@@ -55,6 +77,46 @@ export default function AdminReportes() {
   };
 
   const onAplicar = () => fetchData();
+
+  const renderBadges = () => {
+    if (!totals) return null;
+
+    switch (tab) {
+      case "ventas":
+        return (
+          <div className="rep-badges">
+            <span className="rep-badge">
+              Registros: <strong>{totals.count ?? 0}</strong>
+            </span>
+            <span className="rep-badge">
+              Importe total:{" "}
+              <strong>${Number(totals.total_importe ?? 0).toFixed(2)}</strong>
+            </span>
+          </div>
+        );
+      case "productos":
+        return (
+          <div className="rep-badges">
+            <span className="rep-badge">
+              Productos: <strong>{totals.total_productos ?? 0}</strong>
+            </span>
+            <span className="rep-badge">
+              Activos: <strong>{totals.total_activos ?? 0}</strong>
+            </span>
+          </div>
+        );
+      case "usuarios":
+        return (
+          <div className="rep-badges">
+            <span className="rep-badge">
+              Usuarios: <strong>{totals.total_usuarios ?? 0}</strong>
+            </span>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
 
   const renderTable = () => {
     if (loading) return <div className="estado">Cargando…</div>;
@@ -81,7 +143,7 @@ export default function AdminReportes() {
               {rows.map((r) => (
                 <tr key={r.id_ve}>
                   <td>{r.id_ve}</td>
-                  <td>{new Date(r.fec_ve).toLocaleString()}</td>
+                  <td>{r.fec_ve ? new Date(r.fec_ve).toLocaleString() : "-"}</td>
                   <td>${Number(r.total_ve ?? 0).toFixed(2)}</td>
                   <td>{r.nom_us}</td>
                   <td>{r.email_us}</td>
@@ -146,35 +208,8 @@ export default function AdminReportes() {
           </table>
         );
 
-      // Si habilitas la pestaña "Códigos":
       // case "codigos":
-      //   return (
-      //     <table className="rep-table">
-      //       <thead>
-      //         <tr>
-      //           <th>ID</th>
-      //           <th>Código</th>
-      //           <th>Creado</th>
-      //           <th>ID Venta</th>
-      //           <th>Usuario</th>
-      //           <th>Producto</th>
-      //         </tr>
-      //       </thead>
-      //       <tbody>
-      //         {rows.map((r) => (
-      //           <tr key={r.id}>
-      //             <td>{r.id}</td>
-      //             <td>{r.codigo}</td>
-      //             <td>{new Date(r.creado_en).toLocaleString()}</td>
-      //             <td>{r.id_ve}</td>
-      //             <td>{r.nom_us}</td>
-      //             <td>{r.nom_pr}</td>
-      //           </tr>
-      //         ))}
-      //       </tbody>
-      //     </table>
-      //   );
-
+      //   return (...);
       default:
         return null;
     }
@@ -224,6 +259,8 @@ export default function AdminReportes() {
             </div>
           </div>
         )}
+
+        {renderBadges()}
       </div>
 
       <div className="rep-content">{renderTable()}</div>
