@@ -5,6 +5,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import passport from "passport";
+import session from "express-session";
 
 import { testConnection } from './config/database.js';
 import healthRoutes from './routes/health.routes.js';
