@@ -1,3 +1,4 @@
+// src/pages/MaestroSalon.jsx
 import React, { useEffect, useState, useCallback } from "react";
 import "./Login.css";
 import { API_URL, API_MONGO_URL } from "../env";
@@ -55,9 +56,9 @@ const normalizeSeries = (arr) => {
 };
 
 /* =======================
-   Mini LineChart SVG (más grande)
+   Mini LineChart SVG
 ======================= */
-function LineChart({ data, width = 900, height = 260 }) {
+function LineChart({ data, width = 820, height = 280 }) {
   const clean = normalizeSeries(data || []);
   if (clean.length === 0) {
     return (
@@ -77,7 +78,7 @@ function LineChart({ data, width = 900, height = 260 }) {
   let maxX = Math.max(...times);
   const minY = Math.min(...values);
   const maxY = Math.max(...values);
-  const pad = 30;
+  const pad = 28;
 
   if (minX === maxX) maxX = minX + 1; // evita división por 0
 
@@ -96,7 +97,12 @@ function LineChart({ data, width = 900, height = 260 }) {
     .join(" ");
 
   return (
-    <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`}>
+    <svg
+      width="100%"
+      height={height}
+      viewBox={`0 0 ${width} ${height}`}
+      style={{ display: "block" }}
+    >
       {/* Ejes */}
       <line
         x1={pad}
@@ -115,7 +121,7 @@ function LineChart({ data, width = 900, height = 260 }) {
         strokeWidth="1"
       />
 
-      {/* Curva */}
+      {/* Línea */}
       <path d={path} fill="none" stroke="#22d3ee" strokeWidth="3" />
 
       {/* Puntos */}
@@ -129,11 +135,11 @@ function LineChart({ data, width = 900, height = 260 }) {
         />
       ))}
 
-      {/* Min/Max */}
-      <text x={8} y={18} fill="#9ca3af" fontSize="12">
+      {/* Mini leyenda */}
+      <text x={8} y={16} fill="#9ca3af" fontSize="12">
         min: {minY}
       </text>
-      <text x={8} y={36} fill="#9ca3af" fontSize="12">
+      <text x={8} y={32} fill="#9ca3af" fontSize="12">
         max: {maxY}
       </text>
     </svg>
@@ -453,7 +459,10 @@ export default function MaestroSalon() {
           </p>
 
           <div className="msalon-actions">
-            <button className="btn-primary" onClick={() => setShowForm((s) => !s)}>
+            <button
+              className="btn-primary"
+              onClick={() => setShowForm((s) => !s)}
+            >
               {showForm ? "Cerrar" : "Agregar alumno"}
             </button>
           </div>
@@ -520,7 +529,10 @@ export default function MaestroSalon() {
                 <li
                   key={a.producto_id}
                   className="al-card"
-                  style={{ gridTemplateColumns: "64px 1fr auto" }}
+                  style={{
+                    gridTemplateColumns: "56px 1fr auto",
+                    minHeight: 520, // 🔥 más alto para que la gráfica tenga espacio
+                  }}
                 >
                   <div className="al-avatar">{iniciales || "?"}</div>
 
@@ -529,7 +541,9 @@ export default function MaestroSalon() {
                     <p>Producto ID: {a.producto_id}</p>
 
                     {/* PESO ACTUAL */}
-                    <div style={{ marginTop: 8, fontSize: 14, color: "#cfe7ee" }}>
+                    <div
+                      style={{ marginTop: 8, fontSize: 14, color: "#cfe7ee" }}
+                    >
                       <strong>Peso actual:</strong>{" "}
                       {p.loading
                         ? "Cargando..."
@@ -548,18 +562,29 @@ export default function MaestroSalon() {
                     </div>
 
                     {/* FILTRO DE FECHAS */}
-                    <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <div
+                      style={{
+                        marginTop: 10,
+                        display: "flex",
+                        gap: 8,
+                        flexWrap: "wrap",
+                      }}
+                    >
                       <input
                         type="date"
                         value={p.filtros.from}
-                        onChange={(e) => setFiltro(a.producto_id, "from", e.target.value)}
+                        onChange={(e) =>
+                          setFiltro(a.producto_id, "from", e.target.value)
+                        }
                         className="date-input"
                         max={p.filtros.to || todayStr()}
                       />
                       <input
                         type="date"
                         value={p.filtros.to}
-                        onChange={(e) => setFiltro(a.producto_id, "to", e.target.value)}
+                        onChange={(e) =>
+                          setFiltro(a.producto_id, "to", e.target.value)
+                        }
                         className="date-input"
                         min={p.filtros.from}
                         max={todayStr()}
@@ -591,22 +616,31 @@ export default function MaestroSalon() {
                       </div>
                     )}
 
-                    {/* GRÁFICA (más grande) */}
-                    <div style={{ marginTop: 14 }}>
+                    {/* GRÁFICA */}
+                    <div style={{ marginTop: 14, width: "100%" }}>
                       <div
-                        style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 8 }}
+                        style={{
+                          display: "flex",
+                          gap: 10,
+                          alignItems: "center",
+                          marginBottom: 8,
+                        }}
                       >
                         <span style={{ fontSize: 14, color: "#9cc9d8" }}>
                           {p.rango && p.rango.length > 0
                             ? `Rango ${p.filtros.from} a ${p.filtros.to}`
                             : "Pesos del día"}
                         </span>
-                        {p.loading && <span style={{ fontSize: 12 }}>Cargando...</span>}
+                        {p.loading && (
+                          <span style={{ fontSize: 13 }}>Cargando...</span>
+                        )}
                       </div>
+
+                      {/* 🔥 Gráfica grande */}
                       <LineChart
                         data={p.rango && p.rango.length > 0 ? p.rango : p.hoy}
-                        width={900}
-                        height={260}
+                        width={820}
+                        height={280}
                       />
                     </div>
                   </div>
