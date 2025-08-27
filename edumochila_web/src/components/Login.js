@@ -1,9 +1,8 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import "./Login.css";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { MdBackpack } from "react-icons/md";
 import { API_URL } from "../env";
-// import { setToken } from "../lib/auth"; // <-- quitar
 
 export default function Login() {
   const [nom_us, setNomUs] = useState("");
@@ -11,6 +10,46 @@ export default function Login() {
   const [mensaje, setMensaje] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // ---- Util: parsear query
+  const getQuery = () => new URLSearchParams(location.search);
+
+  // ---- Al regresar del callback de Google (sin JWT):
+  // Esperamos ?u=<base64url(JSON del usuario)>
+  useEffect(() => {
+    const q = getQuery();
+    const u = q.get("u");
+    if (!u) return;
+
+    try {
+      // decode base64url
+      const b64 = u.replace(/-/g, "+").replace(/_/g, "/");
+      const jsonStr = decodeURIComponent(
+        atob(b64)
+          .split("")
+          .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+          .join("")
+      );
+      const usuario = JSON.parse(jsonStr);
+
+      if (usuario && usuario.id_us) {
+        localStorage.setItem("usuario", JSON.stringify(usuario));
+        localStorage.setItem("logged_in", "true");
+
+        const tip = Number(usuario?.tip_us ?? 2);
+        if (tip === 1) navigate("/dashboard", { replace: true });
+        else if (tip === 3) navigate("/maestro", { replace: true });
+        else navigate("/home", { replace: true });
+      } else {
+        setMensaje("No se recibió un usuario válido desde Google.");
+      }
+    } catch (e) {
+      setMensaje("Error procesando el inicio con Google.");
+    }
+    // limpiamos el query para que no quede en la URL
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -23,15 +62,12 @@ export default function Login() {
 
     setLoading(true);
     try {
-      // si quitaste por completo las rutas de auth del backend,
-      // cambia esta URL a la que sí tengas para validar credenciales
       const res = await fetch(`${API_URL}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify({ nom_us: nom_us.trim(), pass_us }),
       });
 
-      // Si falla por CORS, fetch lanza TypeError y caemos al catch
       if (!res.ok) {
         let msg = `Error del servidor (${res.status})`;
         try {
@@ -44,8 +80,7 @@ export default function Login() {
 
       const data = await res.json().catch(() => null);
 
-      // Nuevo contrato SIN JWT: esperamos usuario pero NO access_token
-      // { estatus: "exitoso", usuario: {...}, mensaje? }
+      // Contrato sin JWT: { estatus: "exitoso", usuario: {...} }
       if (data?.estatus === "exitoso" && data?.usuario) {
         localStorage.setItem("usuario", JSON.stringify(data.usuario));
         localStorage.setItem("logged_in", "true");
@@ -59,11 +94,16 @@ export default function Login() {
 
       setMensaje(data?.mensaje || "Credenciales inválidas.");
     } catch (err) {
-      // "Failed to fetch" casi siempre = CORS o red
       setMensaje("Error de red: " + (err?.message || "Failed to fetch"));
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleGoogle = () => {
+    // puedes mandar 'from' si luego quieres volver a donde estaba el usuario
+    const from = encodeURIComponent(window.location.href);
+    window.location.href = `${API_URL}/api/auth/google/redirect?from=${from}`;
   };
 
   return (
@@ -95,11 +135,19 @@ export default function Login() {
           {loading ? "Ingresando…" : "Entrar"}
         </button>
 
-        {/* Quitar Google si ya no usas OAuth en el backend */}
-        {/* <div className="divider"><span>o</span></div>
-        <button type="button" className="btn-google" onClick={() => window.location.href = `${API_URL}/api/auth/google`}>
+        <div className="divider">
+          <span>o</span>
+        </div>
+
+        <button
+          type="button"
+          className="btn-google"
+          onClick={handleGoogle}
+          disabled={loading}
+          title="Continuar con Google"
+        >
           Continuar con Google
-        </button> */}
+        </button>
 
         {mensaje && <p className="mensaje">{mensaje}</p>}
 

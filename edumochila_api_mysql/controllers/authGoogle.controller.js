@@ -1,23 +1,37 @@
 // controllers/authGoogle.controller.js
-import jwt from 'jsonwebtoken';
+// Versión SIN JWT: regresamos el usuario en un query param seguro (base64url)
 
 export function googleRedirect(req, res, next) {
-  // Solo dispara el flujo de Google (scope email + profile)
+  // Passport hará la redirección a Google con scope email + profile
   next();
 }
 
 export function googleCallback(req, res) {
-  // Si estamos aquí, req.user viene de passport (usuario DB)
-  const user = req.user;
-  const token = jwt.sign(
-    { id_us: user.id_us, tip_us: user.tip_us, nom_us: user.nom_us },
-    process.env.JWT_SECRET,
-    { expiresIn: '7d' }
-  );
+  // req.user lo llena passport con tu estrategia de Google
+  const user = req.user; // { id_us, tip_us, nom_us, correo, ... } -> asegúrate de poblar esto en tu strategy
 
-  // Opción simple: manda el token a tu frontend por query string
-  const redirectUrl = `${process.env.FRONTEND_URL}/home?token=${encodeURIComponent(token)}`;
+  if (!user) {
+    const fail = `${process.env.FRONTEND_URL}?error=google`;
+    return res.redirect(fail);
+  }
 
-  // (Alternativa más segura: setear cookie httpOnly aquí y redirigir sin token en URL)
+  const usuario = {
+    id_us: user.id_us,
+    tip_us: user.tip_us,
+    nom_us: user.nom_us,
+    correo: user.correo || user.email || "",
+  };
+
+  // Encode base64url del JSON
+  const json = JSON.stringify(usuario);
+  const b64 = Buffer.from(json, "utf8")
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+
+  // puedes regresar a /login para que procese ?u=...
+  const redirectUrl = `${process.env.FRONTEND_URL}/login?u=${b64}`;
+
   return res.redirect(redirectUrl);
 }
