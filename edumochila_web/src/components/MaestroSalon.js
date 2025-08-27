@@ -56,9 +56,15 @@ const normalizeSeries = (arr) => {
 };
 
 /* =======================
-   Mini LineChart SVG
+   Mini LineChart SVG (con ejes)
 ======================= */
-function LineChart({ data, width = 820, height = 280 }) {
+function LineChart({
+  data,
+  width = 860,
+  height = 260,
+  yTicks = 5, // cantidad de marcas en eje Y
+  xLabelsMax = 6, // máximo de etiquetas en eje X
+}) {
   const clean = normalizeSeries(data || []);
   if (clean.length === 0) {
     return (
@@ -68,80 +74,169 @@ function LineChart({ data, width = 820, height = 280 }) {
     );
   }
 
-  const sorted = clean.sort(
+  // ordenar por tiempo
+  const sorted = [...clean].sort(
     (a, b) => new Date(a.t).getTime() - new Date(b.t).getTime()
   );
   const times = sorted.map((d) => new Date(d.t).getTime());
   const values = sorted.map((d) => Number(d.kg));
 
+  // padding para ejes/etiquetas
+  const padLeft = 64;
+  const padRight = 18;
+  const padTop = 16;
+  const padBottom = 36;
+
+  // dominios
   let minX = Math.min(...times);
   let maxX = Math.max(...times);
-  const minY = Math.min(...values);
-  const maxY = Math.max(...values);
-  const pad = 28;
+  if (minX === maxX) maxX = minX + 1; // evita /0
 
-  if (minX === maxX) maxX = minX + 1; // evita división por 0
+  let minY = Math.min(...values);
+  let maxY = Math.max(...values);
+  if (minY === maxY) {
+    // expandir un poquito si todo es constante
+    minY = minY - Math.abs(minY) * 0.05 - 0.01;
+    maxY = maxY + Math.abs(maxY) * 0.05 + 0.01;
+  }
 
+  // escalas
   const xScale = (x) =>
-    pad + ((x - minX) / (maxX - minX || 1)) * (width - pad * 2);
-  const yScale = (y) =>
-    height - pad - ((y - minY) / (maxY - minY || 1)) * (height - pad * 2);
+    padLeft +
+    ((x - minX) / (maxX - minX)) * (width - padLeft - padRight);
 
-  const path = sorted
-    .map(
-      (d, i) =>
-        `${i === 0 ? "M" : "L"} ${xScale(new Date(d.t).getTime())} ${yScale(
-          Number(d.kg)
-        )}`
-    )
+  const yScale = (y) =>
+    height -
+    padBottom -
+    ((y - minY) / (maxY - minY)) * (height - padTop - padBottom);
+
+  // formato
+  const fmtKg = (n) => {
+    // 3 decimales si es pequeño, 2 si es > 1
+    const abs = Math.abs(n);
+    return abs >= 1 ? n.toFixed(2) : n.toFixed(3);
+  };
+  const fmtTime = (t) => {
+    const d = new Date(t);
+    const hh = String(d.getHours()).padStart(2, "0");
+    const mm = String(d.getMinutes()).padStart(2, "0");
+    return `${hh}:${mm}`;
+  };
+
+  // ticks Y "bonitos" sencillos
+  const ticksY = [];
+  for (let i = 0; i <= yTicks; i++) {
+    ticksY.push(minY + ((maxY - minY) * i) / yTicks);
+  }
+
+  // etiquetas X: seleccionar ~xLabelsMax puntos espaciados
+  const xLabelIdxStep = Math.max(1, Math.ceil(sorted.length / xLabelsMax));
+  const xLabels = [];
+  for (let i = 0; i < sorted.length; i += xLabelIdxStep) {
+    xLabels.push({ t: times[i], x: xScale(times[i]) });
+  }
+  // asegurar el último
+  if (xLabels.length === 0 || xLabels[xLabels.length - 1].t !== times[times.length - 1]) {
+    xLabels.push({ t: times[times.length - 1], x: xScale(times[times.length - 1]) });
+  }
+
+  // path de la línea
+  const pathD = sorted
+    .map((d, i) => `${i === 0 ? "M" : "L"} ${xScale(new Date(d.t).getTime())} ${yScale(d.kg)}`)
     .join(" ");
 
   return (
-    <svg
-      width="100%"
-      height={height}
-      viewBox={`0 0 ${width} ${height}`}
-      style={{ display: "block" }}
-    >
-      {/* Ejes */}
-      <line
-        x1={pad}
-        y1={height - pad}
-        x2={width - pad}
-        y2={height - pad}
-        stroke="#6b7280"
-        strokeWidth="1"
-      />
-      <line
-        x1={pad}
-        y1={pad}
-        x2={pad}
-        y2={height - pad}
-        stroke="#6b7280"
-        strokeWidth="1"
+    <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`}>
+      {/* fondo sutil del plot */}
+      <rect
+        x={padLeft}
+        y={padTop}
+        width={width - padLeft - padRight}
+        height={height - padTop - padBottom}
+        fill="rgba(255,255,255,0.03)"
+        rx="8"
       />
 
-      {/* Línea */}
-      <path d={path} fill="none" stroke="#22d3ee" strokeWidth="3" />
+      {/* grid horizontal (Y) + etiquetas */}
+      {ticksY.map((val, i) => {
+        const y = yScale(val);
+        return (
+          <g key={`yg-${i}`}>
+            <line
+              x1={padLeft}
+              y1={y}
+              x2={width - padRight}
+              y2={y}
+              stroke="#4b5563"
+              strokeOpacity="0.28"
+              strokeWidth="1"
+            />
+            <text
+              x={padLeft - 10}
+              y={y + 4}
+              fill="#cfe7ee"
+              fontSize="11"
+              textAnchor="end"
+            >
+              {fmtKg(val)} kg
+            </text>
+          </g>
+        );
+      })}
 
-      {/* Puntos */}
+      {/* grid vertical (X) + etiquetas */}
+      {xLabels.map((lbl, i) => (
+        <g key={`xg-${i}`}>
+          <line
+            x1={lbl.x}
+            y1={padTop}
+            x2={lbl.x}
+            y2={height - padBottom}
+            stroke="#4b5563"
+            strokeOpacity="0.18"
+            strokeWidth="1"
+          />
+          <text
+            x={lbl.x}
+            y={height - padBottom + 16}
+            fill="#cfe7ee"
+            fontSize="11"
+            textAnchor="middle"
+          >
+            {fmtTime(lbl.t)}
+          </text>
+        </g>
+      ))}
+
+      {/* ejes base */}
+      <line
+        x1={padLeft}
+        y1={height - padBottom}
+        x2={width - padRight}
+        y2={height - padBottom}
+        stroke="#9ca3af"
+        strokeWidth="1.2"
+      />
+      <line
+        x1={padLeft}
+        y1={padTop}
+        x2={padLeft}
+        y2={height - padBottom}
+        stroke="#9ca3af"
+        strokeWidth="1.2"
+      />
+
+      {/* serie */}
+      <path d={pathD} fill="none" stroke="#22d3ee" strokeWidth="3" />
       {sorted.map((d, i) => (
         <circle
           key={i}
           cx={xScale(new Date(d.t).getTime())}
-          cy={yScale(Number(d.kg))}
-          r="4"
+          cy={yScale(d.kg)}
+          r="3.8"
           fill="#22d3ee"
         />
       ))}
-
-      {/* Mini leyenda */}
-      <text x={8} y={16} fill="#9ca3af" fontSize="12">
-        min: {minY}
-      </text>
-      <text x={8} y={32} fill="#9ca3af" fontSize="12">
-        max: {maxY}
-      </text>
     </svg>
   );
 }
@@ -459,10 +554,7 @@ export default function MaestroSalon() {
           </p>
 
           <div className="msalon-actions">
-            <button
-              className="btn-primary"
-              onClick={() => setShowForm((s) => !s)}
-            >
+            <button className="btn-primary" onClick={() => setShowForm((s) => !s)}>
               {showForm ? "Cerrar" : "Agregar alumno"}
             </button>
           </div>
@@ -508,7 +600,7 @@ export default function MaestroSalon() {
         ) : alumnos.length === 0 ? (
           <div className="msalon-empty">Aún no hay alumnos.</div>
         ) : (
-          <ul className="grid-alumnos">
+          <ul className="grid-alumnos" style={{ gridTemplateColumns: "1fr 1fr" }}>
             {alumnos.map((a) => {
               const p = pesos[a.producto_id] || {
                 filtros: { from: todayStr(), to: todayStr() },
@@ -530,20 +622,20 @@ export default function MaestroSalon() {
                   key={a.producto_id}
                   className="al-card"
                   style={{
-                    gridTemplateColumns: "56px 1fr auto",
-                    minHeight: 520, // 🔥 más alto para que la gráfica tenga espacio
+                    gridTemplateColumns: "72px 1fr auto",
+                    padding: 18,
                   }}
                 >
-                  <div className="al-avatar">{iniciales || "?"}</div>
+                  <div className="al-avatar" style={{ width: 72, height: 72, fontSize: 22 }}>
+                    {iniciales || "?"}
+                  </div>
 
                   <div className="al-info">
-                    <h3>{a.nom_alumno || "(Sin nombre)"}</h3>
+                    <h3 style={{ fontSize: 18 }}>{a.nom_alumno || "(Sin nombre)"}</h3>
                     <p>Producto ID: {a.producto_id}</p>
 
                     {/* PESO ACTUAL */}
-                    <div
-                      style={{ marginTop: 8, fontSize: 14, color: "#cfe7ee" }}
-                    >
+                    <div style={{ marginTop: 8, fontSize: 14, color: "#cfe7ee" }}>
                       <strong>Peso actual:</strong>{" "}
                       {p.loading
                         ? "Cargando..."
@@ -562,29 +654,18 @@ export default function MaestroSalon() {
                     </div>
 
                     {/* FILTRO DE FECHAS */}
-                    <div
-                      style={{
-                        marginTop: 10,
-                        display: "flex",
-                        gap: 8,
-                        flexWrap: "wrap",
-                      }}
-                    >
+                    <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
                       <input
                         type="date"
                         value={p.filtros.from}
-                        onChange={(e) =>
-                          setFiltro(a.producto_id, "from", e.target.value)
-                        }
+                        onChange={(e) => setFiltro(a.producto_id, "from", e.target.value)}
                         className="date-input"
                         max={p.filtros.to || todayStr()}
                       />
                       <input
                         type="date"
                         value={p.filtros.to}
-                        onChange={(e) =>
-                          setFiltro(a.producto_id, "to", e.target.value)
-                        }
+                        onChange={(e) => setFiltro(a.producto_id, "to", e.target.value)}
                         className="date-input"
                         min={p.filtros.from}
                         max={todayStr()}
@@ -617,30 +698,23 @@ export default function MaestroSalon() {
                     )}
 
                     {/* GRÁFICA */}
-                    <div style={{ marginTop: 14, width: "100%" }}>
+                    <div style={{ marginTop: 14 }}>
                       <div
-                        style={{
-                          display: "flex",
-                          gap: 10,
-                          alignItems: "center",
-                          marginBottom: 8,
-                        }}
+                        style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 6 }}
                       >
-                        <span style={{ fontSize: 14, color: "#9cc9d8" }}>
+                        <span style={{ fontSize: 13, color: "#9cc9d8" }}>
                           {p.rango && p.rango.length > 0
                             ? `Rango ${p.filtros.from} a ${p.filtros.to}`
                             : "Pesos del día"}
                         </span>
-                        {p.loading && (
-                          <span style={{ fontSize: 13 }}>Cargando...</span>
-                        )}
+                        {p.loading && <span style={{ fontSize: 12 }}>Cargando...</span>}
                       </div>
-
-                      {/* 🔥 Gráfica grande */}
                       <LineChart
                         data={p.rango && p.rango.length > 0 ? p.rango : p.hoy}
-                        width={820}
-                        height={280}
+                        width={860}
+                        height={260}
+                        yTicks={5}
+                        xLabelsMax={6}
                       />
                     </div>
                   </div>
@@ -649,7 +723,7 @@ export default function MaestroSalon() {
                     className="btn-danger"
                     onClick={() => handleDelete(a.producto_id)}
                     title="Eliminar"
-                    style={{ alignSelf: "start" }}
+                    style={{ alignSelf: "start", padding: "10px 14px" }}
                   >
                     Eliminar
                   </button>
