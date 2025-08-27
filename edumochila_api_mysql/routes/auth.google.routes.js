@@ -1,17 +1,15 @@
 import { Router } from "express";
-import passport from "passport";
+import passport from "passport"; // 👈 NO importes desde tu strategy
 import { googleRedirect, googleCallback } from "../controllers/authGoogle.controller.js";
 
 const router = Router();
 
-// Inicia el flujo OAuth
 router.get(
   "/google/redirect",
   googleRedirect,
   passport.authenticate("google", { scope: ["profile", "email"], session: false })
 );
 
-// Callback
 router.get(
   "/google/callback",
   passport.authenticate("google", {
