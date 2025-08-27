@@ -17,25 +17,14 @@ const ALLOWED_FRONTS = new Set([
 ]);
 
 export function googleCallback(req, res) {
-  // de dónde venía el usuario (tu botón manda ?from=origin)
-  const rawFrom = (req.query.from || "").trim();
-  const envFront = (process.env.FRONTEND_URL || "").trim();
-  const safeBase = rawFrom || envFront || "http://localhost:5173";
-
-  let FRONT;
-  try {
-    const url = new URL(safeBase);
-    FRONT = ALLOWED_FRONTS.has(url.origin) ? url.origin : (envFront || "http://localhost:5173");
-  } catch {
-    FRONT = envFront || "http://localhost:5173";
-  }
-
   const user = req.user;
+  const FRONT = process.env.FRONTEND_URL || "http://localhost:5173";
+
   if (!user) {
     return res.redirect(`${FRONT}/login?error=google`);
   }
 
-  // guarda sesión para que /api/auth/me funcione
+  // Guardar la sesión
   req.session.user = {
     id_us: user.id_us,
     tip_us: user.tip_us,
@@ -43,13 +32,16 @@ export function googleCallback(req, res) {
     email: user.email || user.correo || "",
   };
 
-  // 🔁 AQUÍ CAMBIA LA RUTA DE DESTINO
-  // Si quieres ir SIEMPRE al login:
-  return res.redirect(`${FRONT}/login?from=google`);
-
-  // Si quisieras mandarlo directo a home/dashboard:
-  // return res.redirect(`${FRONT}/home`);        // o /dashboard, /maestro, etc.
+  // Redirigir según el tipo de usuario
+  if (user.tip_us === 1) {
+    return res.redirect(`${FRONT}/dashboard`);
+  } else if (user.tip_us === 3) {
+    return res.redirect(`${FRONT}/maestro`);
+  } else {
+    return res.redirect(`${FRONT}/home`);
+  }
 }
+
 
 
 
