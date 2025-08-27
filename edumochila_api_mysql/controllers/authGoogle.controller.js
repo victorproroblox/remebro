@@ -1,37 +1,47 @@
-// controllers/authGoogle.controller.js
-// Versión SIN JWT: regresamos el usuario en un query param seguro (base64url)
+// src/controllers/authGoogle.controller.js
+/**
+ * Flujo Google sin JWT. Guardamos al usuario en req.session
+ * y redirigimos al frontend a una ruta de éxito.
+ */
 
 export function googleRedirect(req, res, next) {
-  // Passport hará la redirección a Google con scope email + profile
-  next();
+  // Solo deja pasar al passport.authenticate
+  return next();
 }
 
 export function googleCallback(req, res) {
-  // req.user lo llena passport con tu estrategia de Google
-  const user = req.user; // { id_us, tip_us, nom_us, correo, ... } -> asegúrate de poblar esto en tu strategy
-
+  // Passport puso el usuario encontrado/creado en req.user
+  const user = req.user;
   if (!user) {
-    const fail = `${process.env.FRONTEND_URL}?error=google`;
-    return res.redirect(fail);
+    const fail = process.env.FRONTEND_URL || "http://localhost:5173";
+    return res.redirect(`${fail}/login?error=google`);
   }
 
-  const usuario = {
+  // Guarda datos mínimos en la sesión del backend
+  req.session.user = {
     id_us: user.id_us,
     tip_us: user.tip_us,
-    nom_us: user.nom_us,
-    correo: user.correo || user.email || "",
+    nom_us: user.nom_us || user.nom1_us || user.nombre || "",
+    email: user.correo || user.email || "",
   };
 
-  // Encode base64url del JSON
-  const json = JSON.stringify(usuario);
-  const b64 = Buffer.from(json, "utf8")
-    .toString("base64")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/g, "");
+  // Redirige a una página del frontend que hará /api/auth/me
+  const ok = process.env.FRONTEND_URL || "http://localhost:5173";
+  return res.redirect(`${ok}/oauth/google/success`);
+}
 
-  // puedes regresar a /login para que procese ?u=...
-  const redirectUrl = `${process.env.FRONTEND_URL}/login?u=${b64}`;
+/** Devuelve el usuario de la sesión (para que el front lo guarde en localStorage) */
+export function me(req, res) {
+  if (req.session?.user) {
+    return res.json({ estatus: "exitoso", usuario: req.session.user });
+  }
+  return res.status(401).json({ estatus: "error", mensaje: "No hay sesión" });
+}
 
-  return res.redirect(redirectUrl);
+/** Cierra sesión (destruye la sesión del backend) */
+export function logout(req, res) {
+  req.session?.destroy?.(() => {
+    res.clearCookie?.("connect.sid");
+    return res.json({ estatus: "exitoso" });
+  });
 }

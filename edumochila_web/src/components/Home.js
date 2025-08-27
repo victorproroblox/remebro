@@ -1,6 +1,6 @@
 // src/pages/Home.jsx
-import React, { useMemo } from 'react';
-import './Login.css'; // si aquí tienes los estilos globales/hero
+import React, { useMemo, useEffect } from 'react';
+import './Login.css';
 import Navbar from './Navbar';
 import {
   MdBackpack,
@@ -11,10 +11,22 @@ import {
   MdShoppingCart
 } from 'react-icons/md';
 import { useNavigate } from 'react-router-dom';
-import { API_URL } from '../env'; // ajusta la ruta si es necesario
+import { API_URL } from '../env';
 
 export default function Home() {
   const navigate = useNavigate();
+
+  // ---------- Guard local de sesión ----------
+  useEffect(() => {
+    // Consideramos sesión válida si existen ambos valores
+    const hasUser = !!localStorage.getItem('usuario');
+    const isLogged = localStorage.getItem('logged_in') === 'true';
+    if (!hasUser || !isLogged) {
+      // Redirige al login si no hay sesión local
+      navigate('/', { replace: true });
+    }
+  }, [navigate]);
+  // ------------------------------------------
 
   const usuario = useMemo(() => {
     try { return JSON.parse(localStorage.getItem('usuario') || '{}'); }
@@ -38,9 +50,10 @@ export default function Home() {
     } catch (_) {
       // noop
     } finally {
-      // limpia siempre del lado cliente
+      // Limpieza local siempre (modo local sin JWT)
       localStorage.removeItem('token');
       localStorage.removeItem('usuario');
+      localStorage.removeItem('logged_in'); // 👈 importante para el guard
       sessionStorage.removeItem('checkout_producto');
       navigate('/', { replace: true });
     }

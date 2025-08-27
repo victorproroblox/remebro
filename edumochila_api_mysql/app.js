@@ -4,6 +4,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import passport from "passport";
 
 import { testConnection } from './config/database.js';
 import healthRoutes from './routes/health.routes.js';
@@ -25,6 +26,7 @@ const app = express();
 
 /* -------------------------- Opciones de CORS --------------------------- */
 // Permite definir orígenes por .env: CORS_ORIGINS=dom1,dom2
+
 const envOrigins = (process.env.CORS_ORIGINS || '')
   .split(',')
   .map(s => s.trim())
@@ -89,6 +91,23 @@ app.use('/api/codigos', codigosRoutes);
 app.use('/api/estados', estadosRoutes);
 app.use('/api', alumnosRoutes);
 app.use('/api/reportes', reportesRoutes);
+
+
+app.use(session({
+  secret: process.env.SESSION_SECRET || "cambia_esto",
+  resave: false,
+  saveUninitialized: false,
+  cookie: { secure: false }, // en prod detrás de HTTPS: true
+}));
+
+// 2) Inicializa passport
+app.use(passport.initialize());
+// (si usaras sesiones de passport, también: app.use(passport.session()))
+
+// 3) Monta rutas DESPUÉS
+import authGoogleRoutes from "./routes/auth.google.routes.js";
+app.use("/api/auth", authGoogleRoutes);
+
 
 /* --------------------------------- 404 & ERR --------------------------- */
 app.use((req, res) => res.status(404).json({ message: 'Ruta no encontrada' }));

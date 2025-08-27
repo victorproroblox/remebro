@@ -140,14 +140,16 @@ export default function Login() {
         </div>
 
         <button
-          type="button"
-          className="btn-google"
-          onClick={handleGoogle}
-          disabled={loading}
-          title="Continuar con Google"
-        >
-          Continuar con Google
-        </button>
+  type="button"
+  className="btn-google"
+  onClick={() => {
+    const from = window.location.origin; // o la ruta actual
+    window.location.href = `${API_URL}/api/auth/google/redirect?from=${encodeURIComponent(from)}`;
+  }}
+>
+  Continuar con Google
+</button>
+
 
         {mensaje && <p className="mensaje">{mensaje}</p>}
 
