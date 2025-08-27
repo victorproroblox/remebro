@@ -1,7 +1,7 @@
 // src/middlewares/google.strategy.js
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
-import { Usuario } from "../models/Usuario.js"; // ajusta si el nombre difiere
+import Usuario from "../models/Usuario.js";
 
 const API_BASE = (process.env.API_BASE_URL || "").trim().replace(/\/+$/, "");
 const CALLBACK_URL = `${API_BASE}/api/auth/google/callback`;
