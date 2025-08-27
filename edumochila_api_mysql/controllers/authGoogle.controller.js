@@ -17,7 +17,7 @@ const ALLOWED_FRONTS = new Set([
 ]);
 
 export function googleCallback(req, res) {
-  const rawFrom = (req.query.from || "").trim();
+  const rawFrom  = (req.query.from || "").trim();
   const envFront = (process.env.FRONTEND_URL || "").trim();
   let FRONT = envFront || "http://localhost:5173";
   try {
@@ -28,13 +28,13 @@ export function googleCallback(req, res) {
   const user = req.user;
   if (!user) return res.redirect(`${FRONT}/login?error=google`);
 
-  // Guarda sesión para /api/auth/me
+  // Guarda datos mínimos para /api/auth/me
   req.session.user = {
     id_us:  user.id_us,
     tip_us: user.tip_us,
     nom_us: user.nom_us || "",
     email:  user.email || "",
-    avatar: user.avatar || null,  // opcional: expón avatar al front
+    avatar: user.avatar || null,
   };
 
   req.session.save(() => {
@@ -43,8 +43,6 @@ export function googleCallback(req, res) {
     return res.redirect(`${FRONT}/home`);
   });
 }
-
-
 
 
 /** Devuelve el usuario de la sesión (para que el front lo guarde en localStorage) */
