@@ -11,7 +11,6 @@ import {
   Platform,
   Alert,
   Modal,
-  TextInput,
 } from "react-native";
 import MapView, { Marker, Polyline } from "react-native-maps";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -87,7 +86,7 @@ export default function MonitorProductScreen({ navigation }) {
   // ===== límite de peso =====
   const [limiteModal, setLimiteModal] = useState(false);
   const [kgSel, setKgSel] = useState(0); // 0..5
-  const [gSel, setGSel] = useState(0); // 0..900 (step 50)
+  const [gSel, setGSel] = useState(0); // 0..900 (step 1)
   const [limiteGramos, setLimiteGramos] = useState(null); // null o número en gramos
 
   // evitar alertas repetidas
@@ -105,7 +104,7 @@ export default function MonitorProductScreen({ navigation }) {
         const kg = Math.min(5, Math.floor(grams / 1000));
         const g = grams % 1000;
         setKgSel(kg);
-        setGSel(Math.min(900, Math.round(g / 50) * 50));
+        setGSel(kg === 5 ? 0 : Math.min(900, g));
       }
     })();
   }, []);
@@ -147,16 +146,20 @@ export default function MonitorProductScreen({ navigation }) {
     return null;
   };
 
-  /** Envía alerta/ mensaje cuando el límite se excede */
+  /** Envía alerta/ mensaje cuando el límite se excede
+   *  (usa el contrato de /api/mensajes: POST '/')
+   *  AlertScreen espera campos: message y fecha.
+   */
   const enviarAlertaPeso = async (producto_id, pesoKg, limiteKg) => {
     try {
       const body = {
+        // campos que tu backend usa/acepta
+        message: `limite de peso excedido (peso: ${pesoKg.toFixed(2)} kg, limite: ${limiteKg.toFixed(2)} kg)`,
         tipo: "peso_limite",
         producto_id,
-        texto: `Límite de peso excedido. Peso: ${pesoKg.toFixed(2)} kg`,
-        peso_kg: Number(pesoKg),
-        limite_kg: Number(limiteKg),
         fecha: new Date().toISOString(),
+        // extra opcional para análisis
+        meta: { peso_kg: Number(pesoKg), limite_kg: Number(limiteKg) },
       };
 
       const { ok, status, data } = await fetchJSON(`${API_MONGO}/api/mensajes`, {
@@ -233,13 +236,11 @@ export default function MonitorProductScreen({ navigation }) {
                 ultimoEnviadoRef.current.valorGr === actualGr
               )
             ) {
+              // Enviar mensaje a /api/mensajes (sin popup)
               await enviarAlertaPeso(producto_id, ultimoKg, limiteKg);
+              // memorizar para no duplicar
               ultimoEnviadoRef.current = { fecha: keyDia, valorGr: actualGr };
-              await AsyncStorage.setItem(
-                "last_peso_alert_ts",
-                String(Date.now())
-              );
-              Alert.alert("Alerta", `Límite excedido. Peso: ${ultimoKg} kg`);
+              await AsyncStorage.setItem("last_peso_alert_ts", String(Date.now()));
             }
           }
         } else {
@@ -288,37 +289,71 @@ export default function MonitorProductScreen({ navigation }) {
 
   useEffect(() => {
     cargarDatos(fechaSeleccionada);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fechaSeleccionada, limiteGramos]);
 
   /** ===== UI selector de límite ===== */
   const KG_OPTS = [0, 1, 2, 3, 4, 5];
-  const STEP_G = 50; // tamaño de paso en gramos
 
-  // normaliza gramos escritos a mano
-  const normalizeGrams = (val) => {
-    let n = parseInt(String(val).replace(/[^\d]/g, ""), 10);
-    if (Number.isNaN(n)) n = 0;
-    n = Math.max(0, Math.min(900, n));
-    // redondea al múltiplo más cercano del paso
-    n = Math.round(n / STEP_G) * STEP_G;
-    return n;
+  // ---------- Stepper de gramos (±1 g con hold & accelerate) ----------
+  const STEP_G = 1;
+  const MIN_G = 0;
+  const MAX_G = 900;
+
+  const clampG = (g) => Math.max(MIN_G, Math.min(MAX_G, g));
+
+  const incOnce = () => {
+    if (kgSel === 5) return; // con 5 kg, g = 0
+    setGSel((prev) => clampG(prev + STEP_G));
+  };
+  const decOnce = () => setGSel((prev) => clampG(prev - STEP_G));
+
+  const holdTimeoutRef = useRef(null);
+  const repeatRef = useRef(null);
+  const speedRef = useRef(200); // ms
+
+  const clearHold = () => {
+    if (holdTimeoutRef.current) { clearTimeout(holdTimeoutRef.current); holdTimeoutRef.current = null; }
+    if (repeatRef.current) { clearInterval(repeatRef.current); repeatRef.current = null; }
+    speedRef.current = 200;
   };
 
-  const incG = () => {
-    if (kgSel === 5) return; // 5 kg -> g bloqueado en 0
-    setGSel((prev) => Math.min(900, prev + STEP_G));
+  const startHold = (direction /* 'inc' | 'dec' */) => {
+    direction === "inc" ? incOnce() : decOnce();
+
+    holdTimeoutRef.current = setTimeout(() => {
+      repeatRef.current = setInterval(() => {
+        direction === "inc" ? incOnce() : decOnce();
+      }, speedRef.current);
+
+      setTimeout(() => {
+        speedRef.current = 80;
+        if (repeatRef.current) {
+          clearInterval(repeatRef.current);
+          repeatRef.current = setInterval(() => {
+            direction === "inc" ? incOnce() : decOnce();
+          }, speedRef.current);
+        }
+      }, 700);
+
+      setTimeout(() => {
+        speedRef.current = 30;
+        if (repeatRef.current) {
+          clearInterval(repeatRef.current);
+          repeatRef.current = setInterval(() => {
+            direction === "inc" ? incOnce() : decOnce();
+          }, speedRef.current);
+        }
+      }, 1500);
+    }, 300);
   };
-  const decG = () => setGSel((prev) => Math.max(0, prev - STEP_G));
+  // --------------------------------------------------------------------
 
   const onKgPress = (k) => {
     setKgSel(k);
-    // si top 5 kg, fuerza 0 g
-    if (k === 5) setGSel(0);
+    if (k === 5) setGSel(0); // con 5 kg, g siempre 0
   };
 
   const guardarLimite = async () => {
-    // si 5 kg, gramos debe ser 0
     const grams = kgSel * 1000 + (kgSel === 5 ? 0 : gSel);
     if (grams > 5000) {
       return Alert.alert("Límite", "El máximo permitido es 5,000 g (5 kg).");
@@ -379,7 +414,7 @@ export default function MonitorProductScreen({ navigation }) {
                     const kg = Math.min(5, Math.floor(limiteGramos / 1000));
                     const g = limiteGramos % 1000;
                     setKgSel(kg);
-                    setGSel(kg === 5 ? 0 : Math.min(900, Math.round(g / STEP_G) * STEP_G));
+                    setGSel(kg === 5 ? 0 : Math.min(900, g));
                   } else {
                     setKgSel(0);
                     setGSel(0);
@@ -471,65 +506,55 @@ export default function MonitorProductScreen({ navigation }) {
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Definir límite de peso</Text>
 
-            <View style={styles.selectorRow}>
-              {/* KILOS */}
-              <View style={{ alignItems: "center" }}>
-                <Text style={styles.selectorLabel}>kg</Text>
-                <View style={styles.chipsRow}>
-                  {KG_OPTS.map((k) => (
-                    <TouchableOpacity
-                      key={k}
-                      style={[styles.chip, kgSel === k && styles.chipActive]}
-                      onPress={() => onKgPress(k)}
-                    >
-                      <Text style={[styles.chipText, kgSel === k && styles.chipTextActive]}>{k}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+            {/* KILOS */}
+            <View style={styles.kgBlock}>
+              <Text style={styles.selectorLabel}>kg</Text>
+              <View style={styles.chipsRow}>
+                {KG_OPTS.map((k) => (
+                  <TouchableOpacity
+                    key={k}
+                    style={[styles.chip, kgSel === k && styles.chipActive]}
+                    onPress={() => onKgPress(k)}
+                  >
+                    <Text style={[styles.chipText, kgSel === k && styles.chipTextActive]}>{k}</Text>
+                  </TouchableOpacity>
+                ))}
               </View>
+            </View>
 
-              <Text style={styles.separator}>—</Text>
+            {/* GRAMOS (stepper) */}
+            <View style={styles.gBlock}>
+              <Text style={styles.selectorLabel}>g</Text>
 
-              {/* GRAMOS con stepper + input */}
-              <View style={{ alignItems: "center", width: 150 }}>
-                <Text style={styles.selectorLabel}>g</Text>
+              <View style={styles.stepperRow}>
+                <TouchableOpacity
+                  style={[styles.stepBtn, { opacity: gSel <= 0 ? 0.5 : 1 }]}
+                  onPressIn={() => { if (gSel > 0) startHold("dec"); }}
+                  onPressOut={clearHold}
+                  onPress={decOnce}
+                  disabled={gSel <= 0}
+                >
+                  <Ionicons name="remove" size={22} color="#fff" />
+                </TouchableOpacity>
 
-                <View style={styles.stepperRow}>
-                  <TouchableOpacity
-                    style={[styles.stepBtn, { opacity: gSel <= 0 ? 0.5 : 1 }]}
-                    onPress={decG}
-                    disabled={gSel <= 0}
-                  >
-                    <Ionicons name="remove" size={18} color="#fff" />
-                  </TouchableOpacity>
-
-                  <TextInput
-                    style={styles.gramInput}
-                    keyboardType="numeric"
-                    value={String(gSel)}
-                    onChangeText={(t) => {
-                      if (kgSel === 5) {
-                        setGSel(0);
-                        return;
-                      }
-                      setGSel(normalizeGrams(t));
-                    }}
-                    editable={kgSel !== 5}
-                  />
-
-                  <TouchableOpacity
-                    style={[styles.stepBtn, { opacity: kgSel === 5 || gSel >= 900 ? 0.5 : 1 }]}
-                    onPress={incG}
-                    disabled={kgSel === 5 || gSel >= 900}
-                  >
-                    <Ionicons name="add" size={18} color="#fff" />
-                  </TouchableOpacity>
+                <View style={styles.gramDisplay}>
+                  <Text style={styles.gramText}>{kgSel === 5 ? 0 : gSel}</Text>
                 </View>
 
-                <Text style={styles.helperG}>
-                  {kgSel === 5 ? "Con 5 kg los gramos deben ser 0" : "Paso de 50 g (0–900)"}
-                </Text>
+                <TouchableOpacity
+                  style={[styles.stepBtn, { opacity: kgSel === 5 || gSel >= 900 ? 0.5 : 1 }]}
+                  onPressIn={() => { if (kgSel !== 5 && gSel < 900) startHold("inc"); }}
+                  onPressOut={clearHold}
+                  onPress={incOnce}
+                  disabled={kgSel === 5 || gSel >= 900}
+                >
+                  <Ionicons name="add" size={22} color="#fff" />
+                </TouchableOpacity>
               </View>
+
+              <Text style={styles.helperG}>
+                {kgSel === 5 ? "Con 5 kg los gramos deben ser 0" : "Ajuste fino de 1 g (0–900)"}
+              </Text>
             </View>
 
             <Text style={styles.previewText}>
@@ -544,7 +569,7 @@ export default function MonitorProductScreen({ navigation }) {
 
               <TouchableOpacity
                 style={[styles.limiteBtn, { backgroundColor: "#555" }]}
-                onPress={() => setLimiteModal(false)}
+                onPress={() => { clearHold(); setLimiteModal(false); }}
               >
                 <Ionicons name="close-outline" size={18} color="#fff" />
                 <Text style={{ color: "#fff", marginLeft: 6, fontWeight: "bold" }}>Cancelar</Text>
@@ -552,7 +577,7 @@ export default function MonitorProductScreen({ navigation }) {
 
               <TouchableOpacity
                 style={[styles.limiteBtn, { backgroundColor: "#d9534f" }]}
-                onPress={limpiarLimite}
+                onPress={() => { clearHold(); limpiarLimite(); }}
               >
                 <Ionicons name="trash-outline" size={18} color="#fff" />
                 <Text style={{ color: "#fff", marginLeft: 6, fontWeight: "bold" }}>Quitar límite</Text>
@@ -566,23 +591,18 @@ export default function MonitorProductScreen({ navigation }) {
       <View style={styles.bottomMenu}>
         <TouchableOpacity style={styles.menuItem} onPress={() => navigation.replace("Home")}>
           <Ionicons name="home-outline" size={24} color="#00cfff" />
-          <Text style={styles.menuText}>Inicio</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.menuItem} onPress={() => navigation.replace("RegisterProduct")}>
           <Ionicons name="add-circle-outline" size={24} color="#00cfff" />
-          <Text style={styles.menuText}>Registrar</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.menuItem} onPress={() => navigation.replace("MonitorProduct")}>
           <Ionicons name="analytics-outline" size={24} color="#00cfff" />
-          <Text style={styles.menuText}>Monitoreo</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.menuItem} onPress={() => navigation.replace("Alert")}>
           <Ionicons name="alert-circle-outline" size={24} color="#00cfff" />
-          <Text style={styles.menuText}>Alertas</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.menuItem} onPress={() => navigation.replace("Schedule")}>
           <Ionicons name="calendar-outline" size={24} color="#00cfff" />
-          <Text style={styles.menuText}>Horario</Text>
         </TouchableOpacity>
       </View>
     </LinearGradient>
@@ -641,29 +661,26 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.6)",
     justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
   },
   modalCard: {
-    width: "100%",
+    width: "96%",
     backgroundColor: "#111",
-    borderRadius: 16,
+    borderRadius: 18,
     padding: 18,
   },
   modalTitle: { color: "#00cfff", fontWeight: "bold", fontSize: 18, textAlign: "center", marginBottom: 12 },
 
-  selectorRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-evenly",
-    marginBottom: 10,
-  },
+  kgBlock: { alignItems: "center", marginBottom: 14 },
+  gBlock: { alignItems: "center", marginBottom: 10, width: "100%" },
+
   selectorLabel: { color: "#9ad4e3", fontSize: 13, marginBottom: 6 },
 
   chipsRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
-    maxWidth: 220,
+    maxWidth: 260,
     justifyContent: "center",
   },
   chip: { backgroundColor: "#222", borderRadius: 14, paddingVertical: 6, paddingHorizontal: 10 },
@@ -671,31 +688,31 @@ const styles = StyleSheet.create({
   chipText: { color: "#ddd", fontSize: 14 },
   chipTextActive: { color: "#fff", fontWeight: "bold" },
 
-  separator: { color: "#ccc", fontSize: 28, marginHorizontal: 6 },
-
   // stepper gramos
   stepperRow: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: 10,
+    width: "100%",
   },
   stepBtn: {
-    backgroundColor: "#00a3c4",
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 10,
+    backgroundColor: "#00cfff",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
   },
-  gramInput: {
+  gramDisplay: {
     backgroundColor: "#222",
-    color: "#fff",
     borderRadius: 10,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    minWidth: 70,
-    textAlign: "center",
-    fontSize: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 26,
+    minWidth: 100,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  helperG: { color: "#999", fontSize: 11, marginTop: 6 },
+  gramText: { color: "#fff", fontSize: 20, fontWeight: "bold", fontVariant: ["tabular-nums"] },
+  helperG: { color: "#999", fontSize: 12, marginTop: 8, textAlign: "center" },
 
   previewText: { color: "#ddd", textAlign: "center", marginVertical: 8 },
 

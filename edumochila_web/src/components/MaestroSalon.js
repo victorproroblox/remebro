@@ -1,4 +1,3 @@
-// src/pages/MaestroSalon.jsx
 import React, { useEffect, useState, useCallback } from "react";
 import "./Login.css";
 import { API_URL, API_MONGO_URL } from "../env";
@@ -56,9 +55,9 @@ const normalizeSeries = (arr) => {
 };
 
 /* =======================
-   Mini LineChart SVG
+   Mini LineChart SVG (más grande)
 ======================= */
-function LineChart({ data, width = 520, height = 160 }) {
+function LineChart({ data, width = 900, height = 260 }) {
   const clean = normalizeSeries(data || []);
   if (clean.length === 0) {
     return (
@@ -78,7 +77,7 @@ function LineChart({ data, width = 520, height = 160 }) {
   let maxX = Math.max(...times);
   const minY = Math.min(...values);
   const maxY = Math.max(...values);
-  const pad = 24;
+  const pad = 30;
 
   if (minX === maxX) maxX = minX + 1; // evita división por 0
 
@@ -98,6 +97,7 @@ function LineChart({ data, width = 520, height = 160 }) {
 
   return (
     <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`}>
+      {/* Ejes */}
       <line
         x1={pad}
         y1={height - pad}
@@ -114,20 +114,26 @@ function LineChart({ data, width = 520, height = 160 }) {
         stroke="#6b7280"
         strokeWidth="1"
       />
-      <path d={path} fill="none" stroke="#22d3ee" strokeWidth="2.5" />
+
+      {/* Curva */}
+      <path d={path} fill="none" stroke="#22d3ee" strokeWidth="3" />
+
+      {/* Puntos */}
       {sorted.map((d, i) => (
         <circle
           key={i}
           cx={xScale(new Date(d.t).getTime())}
           cy={yScale(Number(d.kg))}
-          r="3.5"
+          r="4"
           fill="#22d3ee"
         />
       ))}
-      <text x={8} y={14} fill="#9ca3af" fontSize="11">
+
+      {/* Min/Max */}
+      <text x={8} y={18} fill="#9ca3af" fontSize="12">
         min: {minY}
       </text>
-      <text x={8} y={28} fill="#9ca3af" fontSize="11">
+      <text x={8} y={36} fill="#9ca3af" fontSize="12">
         max: {maxY}
       </text>
     </svg>
@@ -446,7 +452,7 @@ export default function MaestroSalon() {
             Administra a tus alumnos y vincula sus producto_id
           </p>
 
-        <div className="msalon-actions">
+          <div className="msalon-actions">
             <button className="btn-primary" onClick={() => setShowForm((s) => !s)}>
               {showForm ? "Cerrar" : "Agregar alumno"}
             </button>
@@ -514,7 +520,7 @@ export default function MaestroSalon() {
                 <li
                   key={a.producto_id}
                   className="al-card"
-                  style={{ gridTemplateColumns: "56px 1fr auto" }}
+                  style={{ gridTemplateColumns: "64px 1fr auto" }}
                 >
                   <div className="al-avatar">{iniciales || "?"}</div>
 
@@ -585,12 +591,12 @@ export default function MaestroSalon() {
                       </div>
                     )}
 
-                    {/* GRÁFICA */}
-                    <div style={{ marginTop: 12 }}>
+                    {/* GRÁFICA (más grande) */}
+                    <div style={{ marginTop: 14 }}>
                       <div
-                        style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 6 }}
+                        style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 8 }}
                       >
-                        <span style={{ fontSize: 13, color: "#9cc9d8" }}>
+                        <span style={{ fontSize: 14, color: "#9cc9d8" }}>
                           {p.rango && p.rango.length > 0
                             ? `Rango ${p.filtros.from} a ${p.filtros.to}`
                             : "Pesos del día"}
@@ -599,8 +605,8 @@ export default function MaestroSalon() {
                       </div>
                       <LineChart
                         data={p.rango && p.rango.length > 0 ? p.rango : p.hoy}
-                        width={560}
-                        height={180}
+                        width={900}
+                        height={260}
                       />
                     </div>
                   </div>

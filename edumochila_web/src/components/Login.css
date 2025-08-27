@@ -897,7 +897,7 @@
 
 /* LISTA DE ALUMNOS */
 .msalon-list {
-  max-width: 1100px;
+  max-width: 1400px; /* ↑ antes: 1100px */
   margin: 18px auto 60px;
   padding: 0 18px;
 }
@@ -916,7 +916,7 @@
 
 .grid-alumnos {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0,1fr));
+  grid-template-columns: repeat(2, minmax(0,1fr)); /* ↑ antes: 3 columnas */
   gap: 16px;
   margin-top: 10px;
 }
@@ -930,7 +930,7 @@
   backdrop-filter: blur(6px);
   border: 1px solid rgba(255,255,255,0.08);
   border-radius: 14px;
-  padding: 12px;
+  padding: 16px; /* un poquito más de respiro */
   box-shadow: 0 12px 28px rgba(0,0,0,0.28);
 }
 .al-avatar {
@@ -955,11 +955,13 @@
 }
 
 /* responsive */
+@media (min-width: 1600px) {
+  .msalon-list { max-width: 1600px; }
+}
 @media (max-width: 900px) {
-  .grid-alumnos { grid-template-columns: repeat(2, 1fr); }
+  .grid-alumnos { grid-template-columns: 1fr; } /* 1 columna en pantallas chicas */
 }
 @media (max-width: 560px) {
-  .grid-alumnos { grid-template-columns: 1fr; }
   .msalon-hero__content { padding: 18px; border-radius: 18px; }
 }
 

@@ -1,3 +1,4 @@
+// src/screens/AlertScreen.jsx
 import React, { useEffect, useRef, useState } from "react";
 import {
   View,
@@ -7,11 +8,13 @@ import {
   FlatList,
   TouchableOpacity,
   Platform,
+  Vibration,
 } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import * as Haptics from "expo-haptics";
 
 export const API_URL = "https://edumochila-api-mongo.onrender.com";
 
@@ -21,9 +24,12 @@ async function fetchJSON(url, options = {}) {
   return { ok: res.ok, status: res.status, data };
 }
 
-function toISODate(date) {
-  // YYYY-MM-DD
-  return date.toISOString().split("T")[0];
+/** Devuelve YYYY-MM-DD en ZONA LOCAL (no UTC) */
+function toLocalISODate(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 export default function AlertScreen({ navigation }) {
@@ -31,6 +37,9 @@ export default function AlertScreen({ navigation }) {
   const [alertas, setAlertas] = useState([]);
   const [fechaSeleccionada, setFechaSeleccionada] = useState(new Date());
   const [mostrarPicker, setMostrarPicker] = useState(false);
+
+  // Guarda los IDs que ya vimos para detectar "nuevos"
+  const vistosRef = useRef(new Set());
 
   const getProductoId = async () => {
     // 1) Intenta desde AsyncStorage
@@ -56,6 +65,18 @@ export default function AlertScreen({ navigation }) {
     return null;
   };
 
+  const vibrar = async () => {
+    try {
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch {
+      if (Platform.OS === "android") {
+        Vibration.vibrate([0, 200, 100, 200]);
+      } else {
+        Vibration.vibrate(200);
+      }
+    }
+  };
+
   const obtenerAlertas = async () => {
     const token = await AsyncStorage.getItem("token");
     if (!token) {
@@ -70,7 +91,8 @@ export default function AlertScreen({ navigation }) {
       return;
     }
 
-    const fecha = toISODate(fechaSeleccionada);
+    // 👉 fecha local (no UTC)
+    const fecha = toLocalISODate(fechaSeleccionada);
 
     const { ok, status, data } = await fetchJSON(
       `${API_URL}/api/mensajes/${encodeURIComponent(
@@ -86,8 +108,23 @@ export default function AlertScreen({ navigation }) {
     );
 
     if (ok && Array.isArray(data)) {
-      // El backend ordena asc; mostramos los más recientes primero
-      setAlertas([...data].reverse());
+      // Backend ordena asc; mostramos recientes primero
+      const nuevos = [...data].reverse();
+
+      // Detectar nuevos respecto a lo que ya “vimos”
+      const prevVistos = vistosRef.current;
+      const idsNuevos = nuevos
+        .map((it) => (it?._id ? String(it._id) : null))
+        .filter(Boolean)
+        .filter((id) => !prevVistos.has(id));
+
+      // Actualiza set de vistos
+      const setActual = new Set(nuevos.map((it) => (it?._id ? String(it._id) : "")));
+      vistosRef.current = setActual;
+
+      if (idsNuevos.length > 0) vibrar();
+
+      setAlertas(nuevos);
     } else {
       if (status === 401) navigation.replace("Login");
       setAlertas([]);
@@ -103,6 +140,8 @@ export default function AlertScreen({ navigation }) {
   }, [fadeAnim]);
 
   useEffect(() => {
+    // Al cambiar de fecha, resetea “vistos” para ese día
+    vistosRef.current = new Set();
     obtenerAlertas();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fechaSeleccionada]);
@@ -137,7 +176,9 @@ export default function AlertScreen({ navigation }) {
 
         <TouchableOpacity onPress={() => setMostrarPicker(true)} style={styles.dateButton}>
           <Ionicons name="calendar-outline" size={20} color="#00cfff" />
-          <Text style={styles.dateText}>{fechaSeleccionada.toLocaleDateString("es-MX")}</Text>
+          <Text style={styles.dateText}>
+            {fechaSeleccionada.toLocaleDateString("es-MX")}
+          </Text>
         </TouchableOpacity>
 
         {mostrarPicker && (
@@ -147,7 +188,19 @@ export default function AlertScreen({ navigation }) {
             display={Platform.OS === "ios" ? "spinner" : "default"}
             onChange={(event, selectedDate) => {
               setMostrarPicker(false);
-              if (selectedDate) setFechaSeleccionada(selectedDate);
+              if (selectedDate) {
+                // Normaliza a mediodía local para evitar saltos por DST/UTC
+                const norm = new Date(
+                  selectedDate.getFullYear(),
+                  selectedDate.getMonth(),
+                  selectedDate.getDate(),
+                  12,
+                  0,
+                  0,
+                  0
+                );
+                setFechaSeleccionada(norm);
+              }
             }}
           />
         )}
@@ -156,9 +209,7 @@ export default function AlertScreen({ navigation }) {
           data={alertas}
           renderItem={renderItem}
           keyExtractor={(item, index) => (item?._id ? String(item._id) : String(index))}
-          ListEmptyComponent={
-            <Text style={styles.alertTime}>No hay alertas para esta fecha</Text>
-          }
+          ListEmptyComponent={<Text style={styles.alertTime}>No hay alertas para esta fecha</Text>}
           contentContainerStyle={{ paddingBottom: 20 }}
         />
       </Animated.View>
@@ -220,16 +271,8 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     minHeight: 100,
   },
-  alertType: {
-    color: "#fff",
-    fontWeight: "bold",
-    fontSize: 18,
-    marginBottom: 5,
-  },
-  alertTime: {
-    color: "#aaa",
-    fontSize: 15,
-  },
+  alertType: { color: "#fff", fontWeight: "bold", fontSize: 18, marginBottom: 5 },
+  alertTime: { color: "#aaa", fontSize: 15 },
   dateButton: {
     backgroundColor: "#1c1c1c",
     borderRadius: 12,
@@ -239,11 +282,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 15,
   },
-  dateText: {
-    color: "#00cfff",
-    fontSize: 15,
-    marginLeft: 8,
-  },
+  dateText: { color: "#00cfff", fontSize: 15, marginLeft: 8 },
   bottomMenu: {
     flexDirection: "row",
     backgroundColor: "#1a1a1a",

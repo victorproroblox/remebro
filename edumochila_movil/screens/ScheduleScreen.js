@@ -1,3 +1,4 @@
+// src/screens/ScheduleScreen.jsx
 import React, { useState, useEffect, useRef } from "react";
 import {
   View,
@@ -27,11 +28,10 @@ async function fetchJSON(url, options = {}) {
 }
 
 /* ===== etiquetas (chips) para materiales detectables por la mochila ===== */
-const MATERIAL_TAGS = [
-  "Libro",
-  "Libreta",
-  "Calculadora",
-];
+const MATERIAL_TAGS = ["Libro", "Libreta", "Calculadora"];
+
+/* ===== NUEVO: materias fijas como chips (minúsculas, sin acentos) ===== */
+const SUBJECT_TAGS = ["español", "matematicas", "ingles", "historia"];
 
 export default function ScheduleScreen({ navigation }) {
   const dias = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"];
@@ -46,13 +46,12 @@ export default function ScheduleScreen({ navigation }) {
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);
 
-  // materia + materiales
-  const [materia, setMateria] = useState("");
+  // materia (como chip) + materiales
+  const [selectedSubject, setSelectedSubject] = useState(""); // <- selección única
   const [materialesExtra, setMaterialesExtra] = useState(""); // input libre
   const [selectedMaterials, setSelectedMaterials] = useState([]); // chips marcados
 
   const [productoId, setProductoId] = useState(null);
-
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   /* =============== utilidades de hora =============== */
@@ -107,7 +106,9 @@ export default function ScheduleScreen({ navigation }) {
 
   const cargarHorario = async (pid, diaKey) => {
     const { ok, data } = await fetchJSON(
-      `${API_URL}/api/horario/${encodeURIComponent(pid)}/${encodeURIComponent(diaKey)}`
+      `${API_URL}/api/horario/${encodeURIComponent(pid)}/${encodeURIComponent(
+        diaKey
+      )}`
     );
 
     if (ok && data && Array.isArray(data.clases)) {
@@ -120,7 +121,11 @@ export default function ScheduleScreen({ navigation }) {
   /* =============== efectos =============== */
 
   useEffect(() => {
-    Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }).start();
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 600,
+      useNativeDriver: true,
+    }).start();
 
     (async () => {
       const pid = await getProductoId();
@@ -131,14 +136,12 @@ export default function ScheduleScreen({ navigation }) {
       }
       setProductoId(pid);
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     if (!productoId) return;
     const diaKey = diaSeleccionado.toLowerCase();
     cargarHorario(productoId, diaKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [diaSeleccionado, productoId]);
 
   /* =============== chips de materiales =============== */
@@ -149,10 +152,22 @@ export default function ScheduleScreen({ navigation }) {
     );
   };
 
+  /* =============== materias (chips, selección única) =============== */
+  const selectSubject = (tag) => {
+    setSelectedSubject((prev) => (prev === tag ? "" : tag));
+  };
+
   /* =============== agregar clase (POST) =============== */
 
   const agregarClase = async () => {
-    // Validaciones de horas
+    // Validaciones
+    if (!selectedSubject) {
+      Alert.alert(
+        "Materia requerida",
+        "Selecciona una materia: español, matematicas, ingles o historia."
+      );
+      return;
+    }
     if (endTime.getTime() <= startTime.getTime()) {
       Alert.alert("Rango inválido", "La hora final debe ser mayor que la inicial.");
       return;
@@ -183,19 +198,24 @@ export default function ScheduleScreen({ navigation }) {
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean);
-    const fullMaterials = Array.from(new Set([...selectedMaterials, ...extras])).join(",");
+    const fullMaterials = Array.from(
+      new Set([...selectedMaterials, ...extras])
+    ).join(",");
 
     const payload = {
       producto_id: productoId,
       dia: diaSeleccionado.toLowerCase(),
       hora: horaNorm,
-      materia: (materia || "").trim(),
+      materia: selectedSubject, // <- materia fija por chip
       materiales: fullMaterials, // el backend normaliza a array
     };
 
     const { ok, data, status } = await fetchJSON(`${API_URL}/api/horario/clase`, {
       method: "POST",
-      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify(payload),
     });
 
@@ -203,7 +223,7 @@ export default function ScheduleScreen({ navigation }) {
       await cargarHorario(productoId, payload.dia);
       setModalVisible(false);
       // reset
-      setMateria("");
+      setSelectedSubject("");
       setMaterialesExtra("");
       setSelectedMaterials([]);
       setStartTime(new Date(2025, 0, 1, 6, 0, 0));
@@ -258,7 +278,9 @@ export default function ScheduleScreen({ navigation }) {
               style={[styles.diaBoton, diaSeleccionado === dia && styles.diaBotonActivo]}
               onPress={() => setDiaSeleccionado(dia)}
             >
-              <Text style={[styles.diaTexto, diaSeleccionado === dia && styles.diaTextoActivo]}>{dia}</Text>
+              <Text style={[styles.diaTexto, diaSeleccionado === dia && styles.diaTextoActivo]}>
+                {dia}
+              </Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -298,27 +320,20 @@ export default function ScheduleScreen({ navigation }) {
             {/* Hora con pickers */}
             <Text style={styles.label}>Hora</Text>
             <View style={styles.timeRow}>
-              <TouchableOpacity
-                style={styles.timeBtn}
-                onPress={() => setShowStartPicker(true)}
-              >
+              <TouchableOpacity style={styles.timeBtn} onPress={() => setShowStartPicker(true)}>
                 <Ionicons name="time-outline" size={18} color="#00cfff" />
                 <Text style={styles.timeText}>{fmt12(startTime)}</Text>
               </TouchableOpacity>
 
               <Text style={styles.timeDash}>—</Text>
 
-              <TouchableOpacity
-                style={styles.timeBtn}
-                onPress={() => setShowEndPicker(true)}
-              >
+              <TouchableOpacity style={styles.timeBtn} onPress={() => setShowEndPicker(true)}>
                 <Ionicons name="time-outline" size={18} color="#00cfff" />
                 <Text style={styles.timeText}>{fmt12(endTime)}</Text>
               </TouchableOpacity>
             </View>
             <Text style={styles.helperText}>Se enviará como: {horaRango()}</Text>
 
-            {/* Pickers nativos */}
             {showStartPicker && (
               <DateTimePicker
                 mode="time"
@@ -344,17 +359,24 @@ export default function ScheduleScreen({ navigation }) {
               />
             )}
 
-            {/* Materia */}
+            {/* ===== Materia (chips fijos) ===== */}
             <Text style={styles.label}>Materia</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Ej. Matemáticas"
-              placeholderTextColor="#aaa"
-              value={materia}
-              onChangeText={setMateria}
-            />
+            <View style={styles.chipsWrap}>
+              {SUBJECT_TAGS.map((tag) => {
+                const active = selectedSubject === tag;
+                return (
+                  <TouchableOpacity
+                    key={tag}
+                    style={[styles.chip, active && styles.chipActive]}
+                    onPress={() => selectSubject(tag)}
+                  >
+                    <Text style={[styles.chipText, active && styles.chipTextActive]}>{tag}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
 
-            {/* Chips de materiales */}
+            {/* ===== Chips de materiales ===== */}
             <Text style={styles.label}>Materiales</Text>
             <View style={styles.chipsWrap}>
               {MATERIAL_TAGS.map((tag) => {
@@ -365,9 +387,7 @@ export default function ScheduleScreen({ navigation }) {
                     style={[styles.chip, active && styles.chipActive]}
                     onPress={() => toggleMaterial(tag)}
                   >
-                    <Text style={[styles.chipText, active && styles.chipTextActive]}>
-                      {tag}
-                    </Text>
+                    <Text style={[styles.chipText, active && styles.chipTextActive]}>{tag}</Text>
                   </TouchableOpacity>
                 );
               })}
@@ -398,28 +418,24 @@ export default function ScheduleScreen({ navigation }) {
         </View>
       </Modal>
 
-      {/* Bottom menu (navegación simple) */}
+      {/* Bottom menu */}
       <View style={styles.bottomMenu}>
         <TouchableOpacity style={styles.menuItem} onPress={() => navigation.replace("Home")}>
           <Ionicons name="home-outline" size={24} color="#00cfff" />
           <Text style={styles.menuText}>Inicio</Text>
         </TouchableOpacity>
-
         <TouchableOpacity style={styles.menuItem} onPress={() => navigation.replace("RegisterProduct")}>
           <Ionicons name="add-circle-outline" size={24} color="#00cfff" />
           <Text style={styles.menuText}>Registrar</Text>
         </TouchableOpacity>
-
         <TouchableOpacity style={styles.menuItem} onPress={() => navigation.replace("MonitorProduct")}>
           <Ionicons name="analytics-outline" size={24} color="#00cfff" />
           <Text style={styles.menuText}>Monitoreo</Text>
         </TouchableOpacity>
-
         <TouchableOpacity style={styles.menuItem} onPress={() => navigation.replace("Alert")}>
           <Ionicons name="alert-circle-outline" size={24} color="#00cfff" />
           <Text style={styles.menuText}>Alertas</Text>
         </TouchableOpacity>
-
         <TouchableOpacity style={styles.menuItem} onPress={() => navigation.replace("Schedule")}>
           <Ionicons name="calendar-outline" size={24} color="#00cfff" />
           <Text style={styles.menuText}>Horario</Text>
@@ -435,11 +451,13 @@ const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 20, paddingTop: 30, justifyContent: "space-between" },
   card: { backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 25, padding: 25, flex: 1 },
   title: { fontSize: 22, fontWeight: "bold", color: "#00cfff", textAlign: "center", marginBottom: 15 },
+
   diaSelector: { flexDirection: "row", justifyContent: "space-between", marginBottom: 10, flexWrap: "wrap" },
   diaBoton: { paddingVertical: 8, paddingHorizontal: 12, backgroundColor: "#333", borderRadius: 20, marginVertical: 4 },
   diaBotonActivo: { backgroundColor: "#00cfff" },
   diaTexto: { color: "#ccc", fontSize: 13 },
   diaTextoActivo: { color: "#fff", fontWeight: "bold" },
+
   claseItem: {
     backgroundColor: "#222",
     borderRadius: 18,
@@ -452,6 +470,7 @@ const styles = StyleSheet.create({
   claseHora: { color: "#00cfff", fontWeight: "bold", fontSize: 14 },
   claseMateria: { color: "white", fontSize: 15 },
   claseMateriales: { color: "#aaa", fontSize: 13 },
+
   agregarButton: {
     marginTop: 15,
     backgroundColor: "#00cfff",
@@ -462,6 +481,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   agregarTexto: { color: "white", fontWeight: "bold", fontSize: 15, marginLeft: 8 },
+
   bottomMenu: {
     flexDirection: "row",
     backgroundColor: "#1a1a1a",
