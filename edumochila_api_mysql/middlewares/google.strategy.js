@@ -1,26 +1,22 @@
-// src/middlewares/google.strategy.js
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 
-const {
-  GOOGLE_CLIENT_ID,
-  GOOGLE_CLIENT_SECRET,
-  API_BASE_URL,
-} = process.env;
+const rawBase = (process.env.API_BASE_URL || "").trim();
+// quita cualquier slash final
+const API_BASE = rawBase.replace(/\/+$/, "");
+const CALLBACK_URL = `${API_BASE}/api/auth/google/callback`;
 
-const CALLBACK_URL = `${API_BASE_URL}/api/auth/google/callback`;
+console.log("[google.strategy] init ->", {
+  CALLBACK_URL,
+  hasID: !!process.env.GOOGLE_CLIENT_ID,
+  hasSecret: !!process.env.GOOGLE_CLIENT_SECRET
+});
 
-console.log("[google.strategy] init ->",
-  { CALLBACK_URL, hasID: !!GOOGLE_CLIENT_ID, hasSecret: !!GOOGLE_CLIENT_SECRET }
-);
-
-// ⚠️ Registra SIEMPRE la estrategia (si faltan env fallará en callbackURL, pero así
-// comprobamos que al menos se está ejecutando este archivo)
 passport.use("google", new GoogleStrategy(
   {
-    clientID: GOOGLE_CLIENT_ID || "missing",
-    clientSecret: GOOGLE_CLIENT_SECRET || "missing",
-    callbackURL: CALLBACK_URL || "http://localhost:4000/api/auth/google/callback",
+    clientID: process.env.GOOGLE_CLIENT_ID || "missing",
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET || "missing",
+    callbackURL: CALLBACK_URL,
     passReqToCallback: true,
   },
   async (req, accessToken, refreshToken, profile, done) => {

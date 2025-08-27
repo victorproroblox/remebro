@@ -76,7 +76,10 @@ app.use("/api", alumnosRoutes);
 app.use("/api/reportes", reportesRoutes);
 
 app.use((req, res) => res.status(404).json({ message: "Ruta no encontrada" }));
+
 app.use(errorHandler);
+
+console.log("[app] estrategia google presente? ->", !!passport._strategies?.google);
 
 /* --------------------------------- Arranque ---------------------------- */
 const port = process.env.PORT || 4000;
