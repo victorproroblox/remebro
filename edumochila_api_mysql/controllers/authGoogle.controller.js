@@ -10,25 +10,40 @@ export function googleRedirect(req, res, next) {
 }
 
 export function googleCallback(req, res) {
-  // Passport puso el usuario encontrado/creado en req.user
   const user = req.user;
-  if (!user) {
-    const fail = process.env.FRONTEND_URL || "http://localhost:5173";
-    return res.redirect(`${fail}/login?error=google`);
-  }
+  const FRONT = process.env.FRONTEND_URL || "http://localhost:5173";
 
-  // Guarda datos mínimos en la sesión del backend
+  if (!user) return res.redirect(`${FRONT}/login?error=google`);
+
+  // guarda datos mínimos en la sesión del backend
   req.session.user = {
     id_us: user.id_us,
     tip_us: user.tip_us,
-    nom_us: user.nom_us || user.nom1_us || user.nombre || "",
-    email: user.correo || user.email || "",
+    nom_us: user.nom_us || "",
+    email: user.email || user.correo || "",
   };
 
-  // Redirige a una página del frontend que hará /api/auth/me
-  const ok = process.env.FRONTEND_URL || "http://localhost:5173";
-  return res.redirect(`${ok}/oauth/google/success`);
+  // manda al front a una ruta silenciosa que terminará el login
+  return res.redirect(`${FRONT}/oauth/google/success`);
 }
+export function googleCallback(req, res) {
+  const user = req.user;
+  const FRONT = process.env.FRONTEND_URL || "http://localhost:5173";
+
+  if (!user) return res.redirect(`${FRONT}/login?error=google`);
+
+  // guarda datos mínimos en la sesión del backend
+  req.session.user = {
+    id_us: user.id_us,
+    tip_us: user.tip_us,
+    nom_us: user.nom_us || "",
+    email: user.email || user.correo || "",
+  };
+
+  // manda al front a una ruta silenciosa que terminará el login
+  return res.redirect(`${FRONT}/oauth/google/success`);
+}
+
 
 /** Devuelve el usuario de la sesión (para que el front lo guarde en localStorage) */
 export function me(req, res) {
