@@ -9,13 +9,29 @@ export function googleRedirect(req, res, next) {
   return next();
 }
 
+// src/controllers/authGoogle.controller.js
+const ALLOWED_FRONTS = new Set([
+  "https://edumochila-web.onrender.com",
+  "http://localhost:5173",
+]);
+
 export function googleCallback(req, res) {
   const user = req.user;
-  const FRONT = process.env.FRONTEND_URL || "http://localhost:5173";
+  const envFront = (process.env.FRONTEND_URL || "").trim();
+
+  // lee el 'from' enviado por el front
+  const rawFrom = (req.query.from || "").trim();
+  const url = new URL(rawFrom || envFront || "http://localhost:5173");
+
+  const FRONT = ALLOWED_FRONTS.has(url.origin)
+    ? url.origin
+    : (envFront || "http://localhost:5173");
+
+  console.log("[googleCallback] redirecting to FRONT =", FRONT);
 
   if (!user) return res.redirect(`${FRONT}/login?error=google`);
 
-  // guarda datos mínimos en la sesión del backend
+  // guarda sesión
   req.session.user = {
     id_us: user.id_us,
     tip_us: user.tip_us,
@@ -23,27 +39,11 @@ export function googleCallback(req, res) {
     email: user.email || user.correo || "",
   };
 
-  // manda al front a una ruta silenciosa que terminará el login
+  // si quieres ir directo al login:
+  // return res.redirect(`${FRONT}/login?from=google`);
+  // si quieres pantalla silenciosa:
   return res.redirect(`${FRONT}/oauth/google/success`);
 }
-export function googleCallback(req, res) {
-  const user = req.user;
-  const FRONT = process.env.FRONTEND_URL || "http://localhost:5173";
-
-  if (!user) return res.redirect(`${FRONT}/login?error=google`);
-
-  // guarda datos mínimos en la sesión del backend
-  req.session.user = {
-    id_us: user.id_us,
-    tip_us: user.tip_us,
-    nom_us: user.nom_us || "",
-    email: user.email || user.correo || "",
-  };
-
-  // manda al front a una ruta silenciosa que terminará el login
-  return res.redirect(`${FRONT}/oauth/google/success`);
-}
-
 
 /** Devuelve el usuario de la sesión (para que el front lo guarde en localStorage) */
 export function me(req, res) {
