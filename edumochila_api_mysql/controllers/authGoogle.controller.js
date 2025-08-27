@@ -10,28 +10,32 @@ export function googleRedirect(req, res, next) {
 }
 
 // src/controllers/authGoogle.controller.js
+// src/controllers/authGoogle.controller.js
 const ALLOWED_FRONTS = new Set([
   "https://edumochila-web.onrender.com",
   "http://localhost:5173",
 ]);
 
 export function googleCallback(req, res) {
-  const user = req.user;
-  const envFront = (process.env.FRONTEND_URL || "").trim();
-
-  // lee el 'from' enviado por el front
+  // de dónde venía el usuario (tu botón manda ?from=origin)
   const rawFrom = (req.query.from || "").trim();
-  const url = new URL(rawFrom || envFront || "http://localhost:5173");
+  const envFront = (process.env.FRONTEND_URL || "").trim();
+  const safeBase = rawFrom || envFront || "http://localhost:5173";
 
-  const FRONT = ALLOWED_FRONTS.has(url.origin)
-    ? url.origin
-    : (envFront || "http://localhost:5173");
+  let FRONT;
+  try {
+    const url = new URL(safeBase);
+    FRONT = ALLOWED_FRONTS.has(url.origin) ? url.origin : (envFront || "http://localhost:5173");
+  } catch {
+    FRONT = envFront || "http://localhost:5173";
+  }
 
-  console.log("[googleCallback] redirecting to FRONT =", FRONT);
+  const user = req.user;
+  if (!user) {
+    return res.redirect(`${FRONT}/login?error=google`);
+  }
 
-  if (!user) return res.redirect(`${FRONT}/login?error=google`);
-
-  // guarda sesión
+  // guarda sesión para que /api/auth/me funcione
   req.session.user = {
     id_us: user.id_us,
     tip_us: user.tip_us,
@@ -39,11 +43,15 @@ export function googleCallback(req, res) {
     email: user.email || user.correo || "",
   };
 
-  // si quieres ir directo al login:
-  // return res.redirect(`${FRONT}/login?from=google`);
-  // si quieres pantalla silenciosa:
-  return res.redirect(`${FRONT}/oauth/google/success`);
+  // 🔁 AQUÍ CAMBIA LA RUTA DE DESTINO
+  // Si quieres ir SIEMPRE al login:
+  return res.redirect(`${FRONT}/login?from=google`);
+
+  // Si quisieras mandarlo directo a home/dashboard:
+  // return res.redirect(`${FRONT}/home`);        // o /dashboard, /maestro, etc.
 }
+
+
 
 /** Devuelve el usuario de la sesión (para que el front lo guarde en localStorage) */
 export function me(req, res) {
